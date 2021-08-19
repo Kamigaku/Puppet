@@ -1,6 +1,6 @@
 import math
-import datapane as dp
-import pandas as pd
+# import datapane as dp
+# import pandas as pd
 from discord import Embed, RawReactionActionEvent, Message
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -93,18 +93,18 @@ class MuseumCogs(assignableCogs.AssignableCogs):
     async def museum(self, ctx: Context):
         await self.display_menu_categories(ctx)
 
-    @commands.command("report")
-    async def report(self, ctx: Context):
-        query = (Character.select(Character.name, Character.description, Character.category, Character.rarity)
-                          .join(CharactersOwnership))
-        df = pd.DataFrame(list(query.dicts()))
-        r = dp.Report(
-            dp.Markdown('My simple report'),  # add description to the report
-            dp.DataTable(df),  # create a table
-        )
-
-        # Publish your report. Make sure to have visibility='PUBLIC' if you want to share your report
-        r.save(path='report.html')
+    # @commands.command("report")
+    # async def report(self, ctx: Context):
+    #     query = (Character.select(Character.name, Character.description, Character.category, Character.rarity)
+    #                       .join(CharactersOwnership))
+    #     df = pd.DataFrame(list(query.dicts()))
+    #     r = dp.Report(
+    #         dp.Markdown('My simple report'),  # add description to the report
+    #         dp.DataTable(df),  # create a table
+    #     )
+    #
+    #     # Publish your report. Make sure to have visibility='PUBLIC' if you want to share your report
+    #     r.save(path='report.html')
 
     ################################
     #       MENUS                  #
