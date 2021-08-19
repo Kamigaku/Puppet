@@ -1,16 +1,13 @@
 import configparser
 from discordClient.dal import dbContext
 
-def saveConfig():
-    with open("config.ini", "w") as f:
-        configurationFile.write(f)
 
-def loadConfig():
+def load_config():
     tempConfiguration = configparser.ConfigParser()
     tempConfiguration.read("config.ini")
     return tempConfiguration
 
 
-configurationFile = loadConfig()
+configurationFile = load_config()
 dbContext = dbContext.DbContext()
 print(configurationFile.sections())

@@ -25,15 +25,7 @@ RIGHT_ARROW_EMOJI = unicodedata.lookup('Black Rightwards Arrow')
 PUPPET_IDS = {"CARD_COGS_BUY": 1,
               "MUSEUM_COGS_CATEGORIES": 2,
               "MUSEUM_COGS_TYPES": 3,
-              "MUSEUM_COGS_ORIGIN_LETTERS": 4,
-              "MUSEUM_COGS_ORIGINS": 5,
-              "MUSEUM_COGS_AFFILIATION_LETTERS": 6,
-              "MUSEUM_COGS_AFFILIATIONS": 7,
-              "MUSEUM_COGS_RARITIES": 8,
-              "MUSEUM_COGS_CHARACTERS": 9}
-
-
-
-# "CARD_COGS_COLLECTION_RARITY": 3,
-# "CARD_COGS_COLLECTION_ORIGINS": 4,
-# "CARD_COGS_COLLECTION_AFFILIATION": 5
+              "MUSEUM_COGS_AFFILIATION_LETTERS": 4,
+              "MUSEUM_COGS_AFFILIATIONS": 5,
+              "MUSEUM_COGS_RARITIES": 6,
+              "MUSEUM_COGS_CHARACTERS": 7}

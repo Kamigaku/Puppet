@@ -20,44 +20,9 @@ class Character(Model):
         database = db
 
 
-class Feature(Model):
-    name = CharField()
-    type = CharField()
-
-    class Meta:
-        database = db
-
-
 class Affiliation(Model):
     name = CharField()
-
-    class Meta:
-        database = db
-
-
-class Rating(Model):
-    author = CharField()
-    element_id = CharField()
-    comment = CharField()
-    type = CharField()
-    rate = FloatField()
-
-    class Meta:
-        database = db
-
-
-class Event(Model):
-    author = CharField()
-    date = CharField()
-    comment = CharField()
-
-    class Meta:
-        database = db
-
-
-class CharacterOccurrence(Model):
-    character_id = ForeignKeyField(Character, backref='rowid')
-    feature_id = ForeignKeyField(Feature, backref='rowid')
+    category = CharField()
 
     class Meta:
         database = db
@@ -98,11 +63,4 @@ class Booster(Model):
         database = db
 
 
-db.create_tables([Character, Feature, Affiliation, CharacterAffiliation, CharacterOccurrence, Event, Rating, Economy,
-                  CharactersOwnership])
-migrator = SqliteMigrator(dbContext.DbContext().sqliteConnection)
-
-migrate(
-    #migrator.drop_column("charactersownership", "amount"),
-    #migrator.add_column("charactersownership", "message_id", IntegerField(default=-1))
-)
+db.create_tables([Character, Affiliation, CharacterAffiliation, Economy, CharactersOwnership, Booster])
