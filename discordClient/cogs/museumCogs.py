@@ -228,7 +228,8 @@ class MuseumCogs(assignableCogs.AssignableCogs):
         for character in query.paginate(offset + 1, 10):
             character_embed = cardCogs.generate_embed_character(character)
             msg = await ctx.reply(embed=character_embed, delete_after=300, mention_author=False)
-            await msg.add_reaction('💰')
+            await msg.add_reaction(constants.SELL_EMOJI)
+            await msg.add_reaction(constants.REPORT_EMOJI)
 
         end_page = math.ceil(total_owned / 10)
         page_index = offset + 1

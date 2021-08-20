@@ -63,4 +63,24 @@ class Booster(Model):
         database = db
 
 
-db.create_tables([Character, Affiliation, CharacterAffiliation, Economy, CharactersOwnership, Booster])
+class Report(Model):
+    category = CharField()
+    card_id = IntegerField()
+    comment = TextField()
+    reporter_user_id = IntegerField()
+    has_been_treated = BooleanField(default=False)
+    action_done = TextField(default="")
+
+    class Meta:
+        database = db
+
+
+class Moderator(Model):
+    discord_user_id = IntegerField()
+
+    class Meta:
+        database = db
+
+
+db.create_tables([Character, Affiliation, CharacterAffiliation, Economy, CharactersOwnership, Booster, Report,
+                  Moderator])

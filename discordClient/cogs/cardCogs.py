@@ -39,12 +39,20 @@ class CardCogs(assignableCogs.AssignableCogs):
             random.seed(booster_uuid.hex)
             await ctx.message.reply(content=f"Booster generated for user {ctx.message.author.mention}",
                                     mention_author=False)
+            msg_cards = []
             for _ in range(5):
                 character_generated = distribute_random_character([50, 25, 12.5, 9, 3, 0.5])
                 msg = await display_character(ctx, character_generated)
                 ownership_model, has_created_model = CharactersOwnership.get_or_create(
                     discord_user_id=ctx.author.id, character_id=character_generated.get_id(), message_id=msg.id)
                 ownership_model.save()
+                msg_cards.append(msg)
+
+            for msg in msg_cards:
+                await msg.add_reaction(constants.SELL_EMOJI)
+                #await msg.add_reaction(constants.LIBRARY_EMOJI)
+                await msg.add_reaction(constants.REPORT_EMOJI)
+
             user_model.amount -= 20
             user_model.save()
         else:
@@ -79,8 +87,8 @@ class CardCogs(assignableCogs.AssignableCogs):
         ####
 
         # We filter only on what we seek
-        if puppet_id in [constants.PUPPET_IDS["CARD_COGS_BUY"]]:
-            if puppet_id == constants.PUPPET_IDS["CARD_COGS_BUY"]:
+        if puppet_id == constants.PUPPET_IDS["CARD_COGS_BUY"]:
+            if str(payload.emoji) == constants.SELL_EMOJI:  # We sell the card
                 try:
                     character_id = self.retrieve_character_id(origin_message.embeds)
                     owner = CharactersOwnership.get(discord_user_id=user_that_reacted.id,
@@ -97,6 +105,8 @@ class CardCogs(assignableCogs.AssignableCogs):
                     channel = self.bot.get_channel(payload.channel_id)
                     msg = await channel.fetch_message(payload.message_id)
                     await msg.remove_reaction(payload.emoji, user_that_reacted)
+            elif str(payload.emoji) == constants.LIBRARY_EMOJI:  # We display the affiliations associated to the card
+                print("lib")
 
 
 def distribute_random_character(rarities):
@@ -151,5 +161,4 @@ async def display_character(ctx: Context, character: Character, delete_after: in
         msg = await ctx.message.reply(embed=character_embed, mention_author=False)
     else:
         msg = await ctx.message.reply(embed=character_embed, delete_after=delete_after, mention_author=False)
-    await msg.add_reaction('💰')
     return msg

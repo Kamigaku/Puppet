@@ -4,6 +4,7 @@ from discord import Intents
 from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
 from discordClient.cogs.museumCogs import MuseumCogs
+from discordClient.cogs.report_cogs import ReportCogs
 
 
 class PuppetBot(commands.Bot):
@@ -19,3 +20,4 @@ class PuppetBot(commands.Bot):
         self.add_cog(EconomyCogs(self))
         self.add_cog(CardCogs(self))
         self.add_cog(MuseumCogs(self))
+        self.add_cog(ReportCogs(self))

@@ -46,10 +46,6 @@ class EconomyCogs(baseCogs.BaseCogs):
                     await add_amount(member, amount, False)
 
 
-def setup(client):
-    client.add_cog(EconomyCogs(client))
-
-
 async def add_amount(discord_user: User, amount_to_add: int, send_message: bool = True):
     user_model, user_created = Economy.get_or_create(discord_user_id=discord_user.id)
     user_model.amount += amount_to_add

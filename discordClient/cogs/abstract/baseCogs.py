@@ -9,7 +9,6 @@ class BaseCogs(commands.Cog):
     def __init__(self, bot: Bot, name):
         self.bot = bot
         self.cogs_name = name
-        self.reactions_listener = []
 
     async def retrieve_member(self, discord_user_id: int):
         return await self.bot.fetch_user(discord_user_id)
@@ -34,16 +33,3 @@ class BaseCogs(commands.Cog):
                     if regex_result:
                         return regex_result.group(1)
         return ""
-
-    ################################
-    #       LISTENER COGS          #
-    ################################
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
-        message_id = payload.message_id
-        user_id = payload.user_id
-        for reaction_listener in self.reactions_listener:
-            if reaction_listener.message_id == message_id and reaction_listener.author_id == user_id:
-                reaction_listener.callback(payload)
-            pass
