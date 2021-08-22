@@ -5,6 +5,13 @@ LETTER_EMOJIS = [
     for letter in range(ord('A'), ord('Z') + 1)
 ]
 
+NUMBER_EMOJIS = [unicodedata.lookup("KEYCAP DIGIT ZERO"), unicodedata.lookup("KEYCAP DIGIT ONE"),
+                 unicodedata.lookup("KEYCAP DIGIT TWO"), unicodedata.lookup("KEYCAP DIGIT THREE"),
+                 unicodedata.lookup("KEYCAP DIGIT FOUR"), unicodedata.lookup("KEYCAP DIGIT FIVE"),
+                 unicodedata.lookup("KEYCAP DIGIT SIX"), unicodedata.lookup("KEYCAP DIGIT SEVEN"),
+                 unicodedata.lookup("KEYCAP DIGIT EIGHT"), unicodedata.lookup("KEYCAP DIGIT NINE"),
+                 "\U0001F51F"]
+
 ASTERISK_EMOJI = unicodedata.lookup("KEYCAP ASTERISK")
 
 # RARITIES_EMOJI = [unicodedata.lookup('BLACK LARGE SQUARE'), unicodedata.lookup('WHITE LARGE SQUARE'),
@@ -37,3 +44,6 @@ PUPPET_IDS = {"CARD_COGS_BUY": 1,
               "MUSEUM_COGS_RARITIES": 6,
               "MUSEUM_COGS_CHARACTERS": 7,
               "REPORT_COGS_DETAIL": 8}
+
+REACTION_ADD = "REACTION_ADD"
+REACTION_REMOVE = "REACTION_REMOVE"
