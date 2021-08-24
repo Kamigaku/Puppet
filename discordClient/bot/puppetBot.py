@@ -1,5 +1,7 @@
 import re
 import inspect
+import logging
+import discord
 
 from discord.ext import commands
 from discord import Intents, RawReactionActionEvent, Embed
@@ -20,6 +22,23 @@ class PuppetBot(commands.Bot):
         intents.reactions = True
         super().__init__(command_prefix=commands_prefix, intents=intents)
         self.reaction_listeners = []
+
+        handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+        handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+
+        logger = logging.getLogger('discord')
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        logger = logging.getLogger('peewee')
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+
+        logger = logging.getLogger('puppet')
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+
+        self.logger = logger
 
     def default_initialisation(self):
         self.add_cog(EconomyCogs(self))
@@ -61,32 +80,35 @@ class PuppetBot(commands.Bot):
         await self.on_raw_reaction(payload)
 
     async def on_raw_reaction(self, payload: RawReactionActionEvent):
-        ####
-        # Init actions
+
         if self.user.id == payload.user_id:  # We avoid to react to the current bot reactions
             return
-
-        # We avoid situation that doesn't matter
-        user_that_reacted = await self.fetch_user(payload.user_id)
-        if user_that_reacted.bot:
-            return
-
-        # Variables that are needed to determine path
-        channel_message = await self.fetch_channel(payload.channel_id)
-        origin_message = await channel_message.fetch_message(payload.message_id)
-
         string_emoji = str(payload.emoji)
 
-        puppet_id = self.retrieve_puppet_id(origin_message.embeds)
-        # End Init Actions
-        ####
+        user_that_reacted = None
+        origin_message = None
+        puppet_id = None
 
         for reaction_listener in self.reaction_listeners:
-            if (reaction_listener.event_type == payload.event_type and string_emoji in reaction_listener.emoji and
-                    (reaction_listener.puppet_id == -1 or reaction_listener.puppet_id == puppet_id)):
-                if not reaction_listener.return_emoji:
-                    await reaction_listener.callback(origin_message, user_that_reacted)
-                else:
-                    await reaction_listener.callback(origin_message, user_that_reacted, payload.emoji)
-                if reaction_listener.remove_reaction:
-                    origin_message.remove_reaction(payload.emoji, payload.user_id)
+            if payload.event_type in reaction_listener.event_type and string_emoji in reaction_listener.emoji:
+
+                # Retrieve user
+                if user_that_reacted is None:
+                    user_that_reacted = await self.fetch_user(payload.user_id)
+                    if user_that_reacted.bot:
+                        return
+
+                if origin_message is None:
+                    channel_message = await self.fetch_channel(payload.channel_id)
+                    origin_message = await channel_message.fetch_message(payload.message_id)
+
+                if puppet_id is None:
+                    puppet_id = self.retrieve_puppet_id(origin_message.embeds)
+
+                if reaction_listener.puppet_id == -1 or reaction_listener.puppet_id == puppet_id:
+                    if not reaction_listener.return_emoji:
+                        await reaction_listener.callback(origin_message, user_that_reacted)
+                    else:
+                        await reaction_listener.callback(origin_message, user_that_reacted, payload.emoji)
+                    if reaction_listener.remove_reaction:
+                        origin_message.remove_reaction(payload.emoji, payload.user_id)

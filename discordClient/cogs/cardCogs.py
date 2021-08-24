@@ -22,6 +22,7 @@ class CardCogs(assignableCogs.AssignableCogs):
     def __init__(self, bot):
         super().__init__(bot, "card")
         self.enable()
+        self.currently_opening_cards = []
 
     def enable(self):
         self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
@@ -43,30 +44,39 @@ class CardCogs(assignableCogs.AssignableCogs):
     @commands.guild_only()
     @commands.command("cards_buy")
     async def buy_booster(self, ctx: Context):
-        user_model, user_created = Economy.get_or_create(discord_user_id=ctx.author.id)
-        if user_model.amount >= 20:
-            booster_uuid = uuid.uuid4()
-            random.seed(booster_uuid.hex)
-            await ctx.message.reply(content=f"Booster generated for user {ctx.message.author.mention}",
-                                    mention_author=False)
-            msg_cards = []
-            for _ in range(5):
-                character_generated = distribute_random_character([50, 25, 12.5, 9, 3, 0.5])
-                msg = await display_character(ctx, character_generated)
-                ownership_model, has_created_model = CharactersOwnership.get_or_create(
-                    discord_user_id=ctx.author.id, character_id=character_generated.get_id(), message_id=msg.id)
-                ownership_model.save()
-                msg_cards.append(msg)
+        self.bot.logger.info(f"Beginning card distribution for user: {ctx.author.id}")
+        if ctx.author.id not in self.currently_opening_cards:
+            self.currently_opening_cards.append(ctx.author.id)
+            user_model, user_created = Economy.get_or_create(discord_user_id=ctx.author.id)
+            if user_model.amount >= 20:
+                booster_uuid = uuid.uuid4()
+                random.seed(booster_uuid.hex)
+                await ctx.message.reply(content=f"Booster generated for user {ctx.message.author.mention}",
+                                        mention_author=False)
 
-            for msg in msg_cards:
-                await msg.add_reaction(constants.SELL_EMOJI)
-                # await msg.add_reaction(constants.LIBRARY_EMOJI)
-                await msg.add_reaction(constants.REPORT_EMOJI)
+                ownerships_models = []
+                for _ in range(5):
+                    character_generated = distribute_random_character([50, 25, 12.5, 9, 3, 0.5])
+                    msg = await display_character(ctx, character_generated)
+                    ownerships_models.append(CharactersOwnership(discord_user_id=ctx.author.id,
+                                                                 character_id=character_generated.get_id(),
+                                                                 message_id=msg.id))
+                    await msg.add_reaction(constants.SELL_EMOJI)
+                    await msg.add_reaction(constants.REPORT_EMOJI)
 
-            user_model.amount -= 20
-            user_model.save()
+                # Db insertion
+                CharactersOwnership.bulk_create(ownerships_models)
+
+                # Remove the money
+                user_model.amount -= 20
+                user_model.save()
+            else:
+                await ctx.author.send("You don't have enough biteCoin to buy a booster.")
+            self.currently_opening_cards.remove(ctx.author.id)
         else:
-            await ctx.author.send("You don't have enough biteCoin to buy a booster.")
+            await ctx.author.send("You are already opening a booster. If you think this is an error, contact one of "
+                                  "the moderators.")
+        self.bot.logger.info(f"Card distribution over for user: {ctx.author.id}")
 
     ################################
     #       CALLBACKS              #

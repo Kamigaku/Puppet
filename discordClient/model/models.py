@@ -1,6 +1,4 @@
-from peewee import *
 from playhouse.migrate import *
-from playhouse.sqlite_ext import RowIDField
 
 from discordClient.dal import dbContext
 
