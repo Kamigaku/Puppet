@@ -1,7 +1,7 @@
 import re
-from typing import Any
+import asyncio
 
-from discord import RawReactionActionEvent, Embed, Message
+from discord import Embed, Message
 from discord.ext import commands
 from discord.ext.commands import Bot
 
@@ -11,21 +11,28 @@ class BaseCogs(commands.Cog):
     def __init__(self, bot: Bot, name):
         self.bot = bot
         self.cogs_name = name
+        self.locked_message = {}
+
+    def register_locked_message(self, message_id: int):
+        if message_id not in self.locked_message:
+            self.locked_message[message_id] = {}
+            self.locked_message[message_id] = {
+                "lock": asyncio.Lock(),
+                "users": 0
+            }
+        self.locked_message[message_id]["users"] += 1
+        self.bot.logger.info(f"registered message id {message_id}")
+
+    def unregister_locked_message(self, message_id: int):
+        if message_id in self.locked_message:
+            self.locked_message[message_id]["users"] -= 1
+            self.bot.logger.info(f"unregistered message id {message_id}")
+            if self.locked_message[message_id]["users"] <= 0:
+                del(self.locked_message[message_id])
+                self.bot.logger.info(f"delete lock on message id {message_id}")
 
     async def retrieve_member(self, discord_user_id: int):
         return await self.bot.fetch_user(discord_user_id)
-
-    async def retrieve_message(self, channel_id: int, message_id: int):
-        channel_retrieved = await self.bot.fetch_channel(channel_id)
-        return await channel_retrieved.fetch_message(message_id)
-
-    async def retrieve_origin_reply_message(self, message: Message):
-        while message.reference is not None:
-            message = await self.retrieve_message(message.reference.channel_id, message.reference.message_id)
-        return message
-
-    def retrieve_puppet_id(self, embeds: Embed) -> int:
-        return int(self.retrieve_from_embed(embeds, "Puppet_id: (\d+)"))
 
     def retrieve_from_embed(self, embeds: Embed, pattern: str):
         if embeds is not None and len(embeds) > 0:

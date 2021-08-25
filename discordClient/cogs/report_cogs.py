@@ -23,7 +23,7 @@ class ReportCogs(baseCogs.BaseCogs):
                                                   constants.PUPPET_IDS["CARD_COGS_BUY"]))
         self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
                                                   constants.DETAILS_EMOJI,
-                                                  self.report_message,
+                                                  self.report_details,
                                                   constants.PUPPET_IDS["REPORT_COGS_DETAIL"]))
 
     def retrieve_character_id(self, embeds: Embed) -> int:

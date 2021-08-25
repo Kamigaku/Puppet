@@ -16,15 +16,15 @@ from discordClient.model.models import Character, Affiliation, CharacterAffiliat
 #    # MENU - Categories #    # MENU - Choice     #      # MENU - Rarity     #
 #    #    A - Disney     #    #    A - Rarity     #  A   #    A - Common     #
 #    #    ...            # => #    B - Affiliation# ===> #    B - Rary       # ==============================>|
-#    #    * - All        #    #    * - All        #      #    ...            #                                |
-#    #####################    #####################      #    * - All        #                                |
+#    #    * - All      1 #    #    * - All      2 #      #    ...            #                                |
+#    #####################    #####################      #    * - All      3 #                                |
 #                                      |                 #####################                                |
 #                                      |                                                                      |
 #                                      |                 #####################         #####################  |
 #                                      |                 # MENU - Letter     #   si    # MENU - Feature    #  |
 #                                      |         B       #    A              # B avant #    A              # >|
 #                                      |==============>  #    ...            #   ===>  #    ...            #  |
-#                                      |                 #    J              #         #    J              #  |
+#                                      |                 #    J            4 #         #    J            5 #  |
 #                                      |                 #####################         #####################  |
 #                                      |                                                                      |
 #                                      |                                                            v=========|
@@ -32,7 +32,7 @@ from discordClient.model.models import Character, Affiliation, CharacterAffiliat
 #                                      | si *                                            # Affichage perso   #
 #                                      |================================================>#                   #
 #                                                                                        #                   # ==| Loop
-#                                                                                        #                   # <=|
+#                                                                                        #                 6 # <=|
 #                                                                                        #####################
 #
 
@@ -42,8 +42,6 @@ class MuseumCogs(assignableCogs.AssignableCogs):
     def __init__(self, bot):
         super().__init__(bot, "museum")
         self.enable()
-        self.locked_message = []
-        # Il va falloir ajouter une sorte de lock ici pour attendre que le message n'est pas en cours d'utilisation
 
     def enable(self):
         categories_emojis = constants.LETTER_EMOJIS.copy()
@@ -154,74 +152,98 @@ class MuseumCogs(assignableCogs.AssignableCogs):
     #       CALLBACKS              #
     ################################
 
+    # Menu #2
     async def menu_categories_to_choice(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        if emoji.name == constants.ASTERISK_EMOJI:
-            await self.display_menu_types(origin_message, "All")
-        else:
-            index_category = constants.LETTER_EMOJIS.index(emoji.name)
-            category = self.retrieve_characters_category()[index_category].category
-            await self.display_menu_types(origin_message, category)
+        self.register_locked_message(origin_message.id)
+        async with self.locked_message[origin_message.id]["lock"]:
+            if emoji.name == constants.ASTERISK_EMOJI:
+                await self.display_menu_types(origin_message, "All")
+            else:
+                index_category = constants.LETTER_EMOJIS.index(emoji.name)
+                category = self.retrieve_characters_category()[index_category].category
+                await self.display_menu_types(origin_message, category)
+            self.unregister_locked_message(origin_message.id)
 
+    # Menu #3 and #4
     async def menu_choices_to_path(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        if emoji.name == constants.LETTER_EMOJIS[0]:  # A - Rarities
-            await self.display_menu_rarities(origin_message, category)
-        elif emoji.name == constants.LETTER_EMOJIS[1]:  # B - Affiliation
-            await self.display_menu_letters(origin_message, category,
-                                            constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATION_LETTERS"])
-        else:  # * - All
-            await self.display_characters(origin_message, category, user_that_reacted)
+        self.register_locked_message(origin_message.id)
+        async with self.locked_message[origin_message.id]["lock"]:
+            category = self.retrieve_category_name(origin_message.embeds)
+            if emoji.name == constants.LETTER_EMOJIS[0]:  # A - Rarities
+                await self.display_menu_rarities(origin_message, category)
+            elif emoji.name == constants.LETTER_EMOJIS[1]:  # B - Affiliation
+                await self.display_menu_letters(origin_message, category,
+                                                constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATION_LETTERS"])
+            else:  # * - All
+                await self.display_characters(origin_message, category, user_that_reacted)
+            self.unregister_locked_message(origin_message.id)
 
+    # Menu #4
     async def menu_letters_to_path(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        current_offset = self.retrieve_offset(origin_message.embeds)
-        if emoji.name == constants.LEFT_ARROW_EMOJI:
-            current_offset -= 1
-        elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-            current_offset += 1
-        elif emoji.name in constants.LETTER_EMOJIS:
-            letter_index = constants.LETTER_EMOJIS.index(emoji.name) + 65
-            await self.display_menu_affiliations(origin_message, category, str(chr(letter_index)))
-            return
-        await self.display_menu_letters(origin_message, category,
-                                        constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATION_LETTERS"], current_offset)
+        self.register_locked_message(origin_message.id)
+        async with self.locked_message[origin_message.id]["lock"]:
+            category = self.retrieve_category_name(origin_message.embeds)
+            current_offset = self.retrieve_offset(origin_message.embeds)
+            if emoji.name == constants.LEFT_ARROW_EMOJI:
+                current_offset -= 1
+            elif emoji.name == constants.RIGHT_ARROW_EMOJI:
+                current_offset += 1
+            elif emoji.name in constants.LETTER_EMOJIS:
+                letter_index = constants.LETTER_EMOJIS.index(emoji.name) + 65
+                await self.display_menu_affiliations(origin_message, category, str(chr(letter_index)))
+                return
+            await self.display_menu_letters(origin_message, category,
+                                            constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATION_LETTERS"], current_offset)
+            self.unregister_locked_message(origin_message.id)
 
+    # Menu #5
     async def menu_affiliations_to_path(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        current_offset = self.retrieve_offset(origin_message.embeds)
-        current_letter = self.retrieve_letter(origin_message.embeds)
-        if emoji.name == constants.LEFT_ARROW_EMOJI:
-            current_offset -= 1
-        elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-            current_offset += 1
-        elif emoji.name in constants.LETTER_EMOJIS:
-            affiliations = self.retrieve_affiliations(category, current_letter)
-            index_affiliation_selected = constants.LETTER_EMOJIS.index(emoji.name)
-            index_affiliation_selected += (current_offset * 10)
-            await self.display_characters(origin_message, category, user_that_reacted,
-                                          affiliation=affiliations[index_affiliation_selected].name)
-            return
-        await self.display_menu_affiliations(origin_message, category, current_letter, current_offset)
+        self.register_locked_message(origin_message.id)
+        async with self.locked_message[origin_message.id]["lock"]:
+            category = self.retrieve_category_name(origin_message.embeds)
+            current_offset = self.retrieve_offset(origin_message.embeds)
+            current_letter = self.retrieve_letter(origin_message.embeds)
+            if emoji.name == constants.LEFT_ARROW_EMOJI:
+                current_offset -= 1
+            elif emoji.name == constants.RIGHT_ARROW_EMOJI:
+                current_offset += 1
+            elif emoji.name in constants.LETTER_EMOJIS:
+                affiliations = self.retrieve_affiliations(category, current_letter)
+                index_affiliation_selected = constants.LETTER_EMOJIS.index(emoji.name)
+                index_affiliation_selected += (current_offset * 10)
+                await self.display_characters(origin_message, category, user_that_reacted,
+                                              affiliation=affiliations[index_affiliation_selected].name)
+                return
+            await self.display_menu_affiliations(origin_message, category, current_letter, current_offset)
+            self.unregister_locked_message(origin_message.id)
 
+    # Menu #4
     async def menu_rarities_to_character(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        if str(emoji) in constants.RARITIES_EMOJI:
-            index_rarity = constants.RARITIES_EMOJI.index(str(emoji))
-            await self.display_characters(origin_message, category, user_that_reacted, index_rarity)
-        elif emoji.name == constants.ASTERISK_EMOJI:
-            await self.display_characters(origin_message, category, user_that_reacted)
+        self.register_locked_message(origin_message.id)
+        async with self.locked_message[origin_message.id]["lock"]:
+            category = self.retrieve_category_name(origin_message.embeds)
+            if str(emoji) in constants.RARITIES_EMOJI:
+                index_rarity = constants.RARITIES_EMOJI.index(str(emoji))
+                await self.display_characters(origin_message, category, user_that_reacted, index_rarity)
+            elif emoji.name == constants.ASTERISK_EMOJI:
+                await self.display_characters(origin_message, category, user_that_reacted)
+            self.unregister_locked_message(origin_message.id)
 
+    # Menu #6
     async def menu_characters_to_next_page(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        current_offset = self.retrieve_offset(origin_message.embeds)
-        current_rarity = self.retrieve_rarity(origin_message.embeds)
-        current_affiliation = self.retrieve_affiliation(origin_message.embeds)
-        if emoji.name == constants.LEFT_ARROW_EMOJI:
-            current_offset -= 1
-        elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-            current_offset += 1
-        await self.display_characters(origin_message, category, user_that_reacted, current_rarity,
-                                      current_affiliation, current_offset, False)
+        self.register_locked_message(origin_message.id)
+        async with self.locked_message[origin_message.id]["lock"]:
+            category = self.retrieve_category_name(origin_message.embeds)
+            current_offset = self.retrieve_offset(origin_message.embeds)
+            current_rarity = self.retrieve_rarity(origin_message.embeds)
+            current_affiliation = self.retrieve_affiliation(origin_message.embeds)
+            if emoji.name == constants.LEFT_ARROW_EMOJI:
+                current_offset -= 1
+            elif emoji.name == constants.RIGHT_ARROW_EMOJI:
+                current_offset += 1
+            await self.display_characters(origin_message, category, user_that_reacted, current_rarity,
+                                          current_affiliation, current_offset, False)
+            self.unregister_locked_message(origin_message.id)
 
     ################################
     #       MENUS                  #
@@ -258,9 +280,9 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             await ctx.clear_reactions()
             await ctx.edit(embed=type_embed, delete_after=300, mention_author=False)
             msg = ctx
-        await msg.add_reaction_with_check(constants.LETTER_EMOJIS[0])
-        await msg.add_reaction_with_check(constants.LETTER_EMOJIS[1])
-        await msg.add_reaction_with_check(constants.ASTERISK_EMOJI)
+        await msg.add_reaction(constants.LETTER_EMOJIS[0])
+        await msg.add_reaction(constants.LETTER_EMOJIS[1])
+        await msg.add_reaction(constants.ASTERISK_EMOJI)
 
     async def display_menu_rarities(self, ctx: Message, category_selected: str):
         rarity_description = "Select the rarities you want to display\n"
@@ -295,13 +317,13 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             await ctx.edit(embed=letters_embed, delete_after=300, mention_author=False)
             msg = ctx
         if letters_offset > 0:
-            await msg.add_reaction_with_check(constants.LEFT_ARROW_EMOJI)
+            await msg.add_reaction(constants.LEFT_ARROW_EMOJI)
         for _ in range(0, 10):
             letter_index = _ + (letters_offset * 10)
             if letter_index < 26:
-                await msg.add_reaction_with_check(constants.LETTER_EMOJIS[letter_index])
+                await msg.add_reaction(constants.LETTER_EMOJIS[letter_index])
         if letters_offset < 2:
-            await msg.add_reaction_with_check(constants.RIGHT_ARROW_EMOJI)
+            await msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
 
     async def display_menu_affiliations(self, ctx: Message, category_selected: str, letter: str, offset: int = 0):
         affiliations = self.retrieve_affiliations(category_selected, letter)
@@ -325,15 +347,15 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             await ctx.edit(embed=affiliations_embed, delete_after=300, mention_author=False)
             msg = ctx
         if offset > 0:
-            await msg.add_reaction_with_check(constants.LEFT_ARROW_EMOJI)
+            await msg.add_reaction(constants.LEFT_ARROW_EMOJI)
         for _ in range(0, 10):
             affiliation_index = _ + (offset * 10)
             if affiliation_index < len(affiliations):
-                await msg.add_reaction_with_check(constants.LETTER_EMOJIS[_])
+                await msg.add_reaction(constants.LETTER_EMOJIS[_])
             else:
                 break
         if offset < math.ceil(len(affiliations) / 10) - 1:
-            await msg.add_reaction_with_check(constants.RIGHT_ARROW_EMOJI)
+            await msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
 
     async def display_characters(self, ctx: Message, category_selected, user: User, rarity: int = -1,
                                  affiliation: str = "", offset: int = 0, first_iteration: bool = True):
@@ -367,8 +389,8 @@ class MuseumCogs(assignableCogs.AssignableCogs):
                                        .join(CharacterAffiliation)
                                        .where(CharacterAffiliation.character_id == character.id))
             affiliation_text = ""
-            for affiliation in affiliations:
-                affiliation_text += f"{affiliation.name}, "
+            for character_affiliation in affiliations:
+                affiliation_text += f"{character_affiliation.name}, "
             characters_embed.add_field(name=f"`{index}.` {constants.RARITIES_EMOJI[character.rarity]} "
                                             f"[{constants.RARITIES_LABELS[character.rarity]}] {character.name}",
                                        value=f"{affiliation_text[:-2]}", inline=False)
@@ -388,6 +410,7 @@ class MuseumCogs(assignableCogs.AssignableCogs):
         if type(ctx.channel) == DMChannel:
             msg = await ctx.reply(content=page_message, embed=characters_embed, delete_after=300, mention_author=False)
         else:
+            self.bot.logger.info("Sending edit message")
             await ctx.edit(content=page_message, embed=characters_embed, delete_after=300, mention_author=False)
             msg = ctx
 
