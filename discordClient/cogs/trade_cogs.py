@@ -175,7 +175,7 @@ class TradeCogs(assignableCogs.AssignableCogs):
 
         recipient_chars = []
         for recipient_card in query_recipient:
-            applicant_chars.append(f"{recipient_card.charactersownership.id_own} • "
+            recipient_chars.append(f"{recipient_card.charactersownership.id_own} • "
                                    f"{constants.RARITIES_EMOJI[recipient_card.rarity]} "
                                    f"[**{constants.RARITIES_LABELS[recipient_card.rarity]}**] {recipient_card.name}")
 
@@ -401,4 +401,4 @@ class TradeCogs(assignableCogs.AssignableCogs):
             await user_that_reacted.send("The trade is complete.")
             applicant = await self.retrieve_member(trade_model.applicant)
             await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} has"
-                                 f" been refused.")
+                                 f" been accepted!")
