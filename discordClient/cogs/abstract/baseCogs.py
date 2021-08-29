@@ -32,7 +32,10 @@ class BaseCogs(commands.Cog):
                 self.bot.logger.info(f"delete lock on message id {message_id}")
 
     async def retrieve_member(self, discord_user_id: int):
-        return await self.bot.fetch_user(discord_user_id)
+        discord_user = self.bot.get_user(discord_user_id)
+        if discord_user is None:
+            discord_user = await self.bot.fetch_user(discord_user_id)
+        return discord_user
 
     def retrieve_from_embed(self, embeds: Embed, pattern: str):
         if embeds is not None and len(embeds) > 0:

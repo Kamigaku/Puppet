@@ -1,6 +1,6 @@
 class ReactionListener:
 
-    def __init__(self, event_type: str, emoji, callback, puppet_id: int = -1, remove_reaction: bool = False,
+    def __init__(self, event_type, emoji, callback, puppet_id: int = -1, remove_reaction: bool = False,
                  return_emoji: bool = False):
         if type(event_type) is not list:
             self.event_type = [event_type]

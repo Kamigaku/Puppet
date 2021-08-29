@@ -80,5 +80,17 @@ class Moderator(Model):
         database = db
 
 
+class Trade(Model):
+    applicant = IntegerField()
+    recipient = IntegerField()
+    applicant_cards = TextField(null=False)
+    recipient_cards = TextField(null=False)
+    confirmation_code = TextField()
+    state = IntegerField(default=0)
+
+    class Meta:
+        database = db
+
+
 db.create_tables([Character, Affiliation, CharacterAffiliation, Economy, CharactersOwnership, Booster, Report,
-                  Moderator])
+                  Moderator, Trade])

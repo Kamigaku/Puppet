@@ -1,10 +1,12 @@
 import math
 # import datapane as dp
 # import pandas as pd
+from peewee import fn
 from discord import Embed, Message, User, Emoji, DMChannel
 from discord.ext import commands
 from discord.ext.commands import Context
 from discordClient.cogs.abstract import assignableCogs
+from discordClient.cogs import cardCogs
 from discordClient.helper import constants
 from discordClient.helper.reaction_listener import ReactionListener
 from discordClient.model.models import Character, Affiliation, CharacterAffiliation, \
@@ -77,7 +79,9 @@ class MuseumCogs(assignableCogs.AssignableCogs):
                                                   self.menu_rarities_to_character,
                                                   constants.PUPPET_IDS["MUSEUM_COGS_RARITIES"],
                                                   return_emoji=True))
-        characters_emojis = [constants.LEFT_ARROW_EMOJI, constants.RIGHT_ARROW_EMOJI]
+        characters_emojis = constants.NUMBER_EMOJIS[1:].copy()
+        characters_emojis.append(constants.LEFT_ARROW_EMOJI)
+        characters_emojis.append(constants.RIGHT_ARROW_EMOJI)
         self.bot.append_listener(ReactionListener([constants.REACTION_ADD, constants.REACTION_REMOVE],
                                                   characters_emojis,
                                                   self.menu_characters_to_next_page,
@@ -237,12 +241,19 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             current_offset = self.retrieve_offset(origin_message.embeds)
             current_rarity = self.retrieve_rarity(origin_message.embeds)
             current_affiliation = self.retrieve_affiliation(origin_message.embeds)
-            if emoji.name == constants.LEFT_ARROW_EMOJI:
-                current_offset -= 1
-            elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-                current_offset += 1
-            await self.display_characters(origin_message, category, user_that_reacted, current_rarity,
-                                          current_affiliation, current_offset, False)
+            if emoji.name in [constants.LEFT_ARROW_EMOJI, constants.RIGHT_ARROW_EMOJI]:
+                if emoji.name == constants.LEFT_ARROW_EMOJI:
+                    current_offset -= 1
+                elif emoji.name == constants.RIGHT_ARROW_EMOJI:
+                    current_offset += 1
+                await self.display_characters(origin_message, category, user_that_reacted, current_rarity,
+                                              current_affiliation, current_offset, False)
+            else: # We want to display a player
+                character_index = constants.NUMBER_EMOJIS.index(emoji.name) - 1
+                await self.display_character(origin_message, category, user_that_reacted, current_rarity,
+                                             current_affiliation, current_offset, character_index)
+                pass
+
             self.unregister_locked_message(origin_message.id)
 
     ################################
@@ -360,7 +371,7 @@ class MuseumCogs(assignableCogs.AssignableCogs):
     async def display_characters(self, ctx: Message, category_selected, user: User, rarity: int = -1,
                                  affiliation: str = "", offset: int = 0, first_iteration: bool = True):
         # Characters retrieving
-        query = Character.select(Character)
+        query = Character.select(Character, fn.Count(Character.id).alias('count'))
         if category_selected != "All":
             query = query.where(Character.category == category_selected)
         if rarity >= 0:
@@ -374,6 +385,7 @@ class MuseumCogs(assignableCogs.AssignableCogs):
         # Then we filter on only the owned card
         query = (query.join(CharactersOwnership, on=(CharactersOwnership.character_id == Character.id))
                       .where(CharactersOwnership.discord_user_id == user.id)
+                      .group_by(Character.id)
                       .order_by(Character.name))
 
         total_owned = query.count()
@@ -391,9 +403,11 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             affiliation_text = ""
             for character_affiliation in affiliations:
                 affiliation_text += f"{character_affiliation.name}, "
-            characters_embed.add_field(name=f"`{index}.` {constants.RARITIES_EMOJI[character.rarity]} "
-                                            f"[{constants.RARITIES_LABELS[character.rarity]}] {character.name}",
-                                       value=f"{affiliation_text[:-2]}", inline=False)
+            character_field = f"`{index}.` {constants.RARITIES_EMOJI[character.rarity]} " \
+                              f"[{constants.RARITIES_LABELS[character.rarity]}] {character.name}"
+            if character.count > 1:
+                character_field += f" (x{character.count})"
+            characters_embed.add_field(name=character_field, value=f"{affiliation_text[:-2]}", inline=False)
             index += 1
 
         end_page = math.ceil(total_owned / 10)
@@ -410,7 +424,6 @@ class MuseumCogs(assignableCogs.AssignableCogs):
         if type(ctx.channel) == DMChannel:
             msg = await ctx.reply(content=page_message, embed=characters_embed, delete_after=300, mention_author=False)
         else:
-            self.bot.logger.info("Sending edit message")
             await ctx.edit(content=page_message, embed=characters_embed, delete_after=300, mention_author=False)
             msg = ctx
 
@@ -422,5 +435,30 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             for number in numbers:
                 await msg.add_reaction(number)
             await msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
+
+    # A factoriser avec display_characters
+    async def display_character(self, ctx: Message, category_selected, user: User, rarity: int = -1,
+                                affiliation: str = "", offset: int = 0, character_offset: int = 0):
+        # Characters retrieving
+        query = Character.select(Character)
+        if category_selected != "All":
+            query = query.where(Character.category == category_selected)
+        if rarity >= 0:
+            query = query.where(Character.rarity == rarity)
+        if affiliation:
+            query = (query.join(CharacterAffiliation)
+                     .join(Affiliation)
+                     .where(Affiliation.name == affiliation))
+
+        # Then we filter on only the owned card
+        query = (query.join(CharactersOwnership, on=(CharactersOwnership.character_id == Character.id))
+                 .where(CharactersOwnership.discord_user_id == user.id)
+                 .order_by(Character.name))
+        characters = query.paginate(offset + 1, 10)
+        embed = cardCogs.generate_embed_character(characters[character_offset])
+        msg = await ctx.channel.send(embed=embed)
+        await msg.add_reaction(constants.SELL_EMOJI)
+        await msg.add_reaction(constants.REPORT_EMOJI)
+
 
 

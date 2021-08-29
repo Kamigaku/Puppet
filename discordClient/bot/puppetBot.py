@@ -1,7 +1,6 @@
 import re
 import inspect
 import logging
-import discord
 
 from discord.ext import commands
 from discord import Intents, RawReactionActionEvent, Embed
@@ -10,6 +9,7 @@ from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
 from discordClient.cogs.museumCogs import MuseumCogs
 from discordClient.cogs.report_cogs import ReportCogs
+from discordClient.cogs.trade_cogs import TradeCogs
 from discordClient.helper.reaction_listener import ReactionListener
 
 
@@ -45,9 +45,13 @@ class PuppetBot(commands.Bot):
         self.add_cog(CardCogs(self))
         self.add_cog(MuseumCogs(self))
         self.add_cog(ReportCogs(self))
+        self.add_cog(TradeCogs(self))
 
     def retrieve_puppet_id(self, embeds: Embed) -> int:
-        return int(self.retrieve_from_embed(embeds, "Puppet_id: (\d+)"))
+        puppet_id_str = self.retrieve_from_embed(embeds, "Puppet_id: (\d+)")
+        if not puppet_id_str:
+            return None
+        return int(puppet_id_str)
 
     def retrieve_from_embed(self, embeds: Embed, pattern: str):
         if embeds is not None and len(embeds) > 0:
@@ -94,12 +98,18 @@ class PuppetBot(commands.Bot):
 
                 # Retrieve user
                 if user_that_reacted is None:
-                    user_that_reacted = await self.fetch_user(payload.user_id)
+                    user_that_reacted = self.get_user(payload.user_id)
+                    if user_that_reacted is None:
+                        user_that_reacted = await self.fetch_user(payload.user_id)
                     if user_that_reacted.bot:
                         return
 
                 if origin_message is None:
-                    channel_message = await self.fetch_channel(payload.channel_id)
+                    channel_message = self.get_channel(payload.channel_id)
+                    if channel_message is None:
+                        channel_message = await self.fetch_channel(payload.channel_id)
+
+                    # On pourrait ici ajouter un cache local au niveau du bot des messages de commands
                     origin_message = await channel_message.fetch_message(payload.message_id)
 
                 if puppet_id is None:

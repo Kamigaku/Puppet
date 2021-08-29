@@ -41,7 +41,8 @@ class EconomyCogs(baseCogs.BaseCogs):
                         amount = 2
                     elif member.status == Status.idle or member.status == Status.do_not_disturb:
                         amount = 1
-                    if member.voice is not None:
+                    if (member.voice is not None and not member.voice.afk and not member.voice.self_deaf
+                       and not member.voice.self_mute):
                         amount *= 2
                     await add_amount(member, amount, False)
 
