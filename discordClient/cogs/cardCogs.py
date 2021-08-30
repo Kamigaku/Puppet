@@ -100,8 +100,8 @@ class CardCogs(assignableCogs.AssignableCogs):
                 await character_msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
 
                 # # Remove the money
-                # user_model.amount -= 20
-                # user_model.save()
+                user_model.amount -= 20 * amount
+                user_model.save()
 
             else:
                 await ctx.author.send("You don't have enough biteCoin to buy a booster.")
