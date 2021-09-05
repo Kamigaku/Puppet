@@ -21,7 +21,7 @@ class PuppetBot(commands.Bot):
         intents.presences = True
         intents.reactions = True
         super().__init__(command_prefix=commands_prefix, intents=intents)
-        self.reaction_listeners = []
+        self.reaction_listeners = {}
 
         handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
         handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
@@ -39,6 +39,8 @@ class PuppetBot(commands.Bot):
         logger.setLevel(logging.DEBUG)
 
         self.logger = logger
+        self.logger.info("Puppet is online!")
+        print("Puppet is online!")
 
     def default_initialisation(self):
         self.add_cog(EconomyCogs(self))
@@ -68,10 +70,16 @@ class PuppetBot(commands.Bot):
         if not inspect.iscoroutinefunction(reaction_listener.callback):
             raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" is not a coroutine function.")
         number_arguments = len(inspect.getfullargspec(reaction_listener.callback).args)
-        if 2 < number_arguments < 3:
-            raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" must have 2 or 3 parameters.\n"
-                              f"The parameters needs to be: message, user, [emoji].")
-        self.reaction_listeners.append(reaction_listener)
+        if 1 < number_arguments < 2:
+            raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" must have 1 or 2 parameters.\n"
+                              f"The parameters needs to be: user, [emoji].")
+        if reaction_listener.message_id not in self.reaction_listeners:
+            self.reaction_listeners[reaction_listener.message_id] = []
+        self.reaction_listeners[reaction_listener.message_id].append(reaction_listener)
+
+    def remove_listener(self, message_id: int):
+        if message_id in self.reaction_listeners:
+            self.reaction_listeners.pop(message_id)
 
     ################################
     #       LISTENERS BOT          #
@@ -84,41 +92,29 @@ class PuppetBot(commands.Bot):
         await self.on_raw_reaction(payload)
 
     async def on_raw_reaction(self, payload: RawReactionActionEvent):
-
         if self.user.id == payload.user_id:  # We avoid to react to the current bot reactions
             return
+
         string_emoji = str(payload.emoji)
 
-        user_that_reacted = None
-        origin_message = None
-        puppet_id = None
+        if payload.message_id not in self.reaction_listeners:
+            return
+        else:
+            message_listener = self.reaction_listeners[payload.message_id]
 
-        for reaction_listener in self.reaction_listeners:
-            if payload.event_type in reaction_listener.event_type and string_emoji in reaction_listener.emoji:
+            for reaction_listener in message_listener:
+                if (payload.event_type in reaction_listener.event_type and string_emoji in reaction_listener.emoji and
+                        (reaction_listener.bound_to is None or
+                         (reaction_listener.bound_to is not None and reaction_listener.bound_to == payload.user_id))):
 
-                # Retrieve user
-                if user_that_reacted is None:
+                    # Retrieve user
                     user_that_reacted = self.get_user(payload.user_id)
                     if user_that_reacted is None:
                         user_that_reacted = await self.fetch_user(payload.user_id)
                     if user_that_reacted.bot:
                         return
 
-                if origin_message is None:
-                    channel_message = self.get_channel(payload.channel_id)
-                    if channel_message is None:
-                        channel_message = await self.fetch_channel(payload.channel_id)
-
-                    # On pourrait ici ajouter un cache local au niveau du bot des messages de commands
-                    origin_message = await channel_message.fetch_message(payload.message_id)
-
-                if puppet_id is None:
-                    puppet_id = self.retrieve_puppet_id(origin_message.embeds)
-
-                if reaction_listener.puppet_id == -1 or reaction_listener.puppet_id == puppet_id:
                     if not reaction_listener.return_emoji:
-                        await reaction_listener.callback(origin_message, user_that_reacted)
+                        await reaction_listener.callback(user_that_reacted)
                     else:
-                        await reaction_listener.callback(origin_message, user_that_reacted, payload.emoji)
-                    if reaction_listener.remove_reaction:
-                        origin_message.remove_reaction(payload.emoji, payload.user_id)
+                        await reaction_listener.callback(user_that_reacted, payload.emoji)

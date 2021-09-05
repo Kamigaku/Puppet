@@ -1,5 +1,3 @@
-import hashlib
-
 from discord import User, Embed, Message, Emoji, utils
 from discord.ext import commands
 from discord.ext.commands import Context
@@ -7,7 +5,7 @@ from discord.ext.commands import Context
 from discordClient.cogs.abstract import assignableCogs
 from discordClient.helper import constants
 from discordClient.helper.reaction_listener import ReactionListener
-from discordClient.model.models import Affiliation, CharacterAffiliation, CharactersOwnership, Character, Trade
+from discordClient.model import Affiliation, CharacterAffiliation, CharactersOwnership, Character, Trade
 
 
 class TradeCogs(assignableCogs.AssignableCogs):
@@ -157,46 +155,7 @@ class TradeCogs(assignableCogs.AssignableCogs):
         applicant = await self.retrieve_member(trade.applicant)
         recipient = await self.retrieve_member(trade.recipient)
 
-        applicant_cards = trade.applicant_cards.split("-")
-        recipient_cards = trade.recipient_cards.split("-")
-
-        query_applicant = (Character.select(Character, CharactersOwnership.id.alias("id_own"))
-                                    .join(CharactersOwnership)
-                                    .where(CharactersOwnership.id << applicant_cards))
-        query_recipient = (Character.select(Character, CharactersOwnership.id.alias("id_own"))
-                                    .join(CharactersOwnership)
-                                    .where(CharactersOwnership.id << recipient_cards))
-
-        applicant_chars = []
-        for applicant_card in query_applicant:
-            applicant_chars.append(f"{applicant_card.charactersownership.id_own} • "
-                                   f"{constants.RARITIES_EMOJI[applicant_card.rarity]} "
-                                   f"[**{constants.RARITIES_LABELS[applicant_card.rarity]}**] {applicant_card.name}")
-
-        recipient_chars = []
-        for recipient_card in query_recipient:
-            recipient_chars.append(f"{recipient_card.charactersownership.id_own} • "
-                                   f"{constants.RARITIES_EMOJI[recipient_card.rarity]} "
-                                   f"[**{constants.RARITIES_LABELS[recipient_card.rarity]}**] {recipient_card.name}")
-
-        embed_trade = Embed()
-        embed_trade.title = "Trade recap"
-        embed_trade.description = f"This section recap the trade offer between " \
-                                  f"**{applicant.name}#{applicant.discriminator}** and " \
-                                  f"**{recipient.name}#{recipient.discriminator}**"
-        embed_trade.set_author(name=f"{applicant.name}#{applicant.discriminator}", icon_url=applicant.avatar_url)
-        embed_trade.set_thumbnail(url=recipient.avatar_url)
-
-        value_applicant = "\n".join(applicant_chars)
-        if not value_applicant:
-            value_applicant = "None"
-        value_recipient = "\n".join(recipient_chars)
-        if not value_recipient:
-            value_recipient = "None"
-
-        embed_trade.add_field(name=f"{applicant.name}#{applicant.discriminator}", value=value_applicant)
-        embed_trade.add_field(name=f"{recipient.name}#{recipient.discriminator}", value=value_recipient)
-        embed_trade.set_footer(text=f"Trade_id: {trade.id} | Puppet_id: {constants.PUPPET_IDS['TRADE_COGS_OFFER']}")
+        embed_trade = trade.generate_embed(applicant, recipient)
         return embed_trade
 
     ################################
@@ -324,7 +283,6 @@ class TradeCogs(assignableCogs.AssignableCogs):
         recipient_user = None
         applicant_chars = ""
         recipient_chars = ""
-        confirmation_code = ""
         for user in selected_chars.keys():
             user_info = user.split("#")
             current_user = utils.get(self.bot.get_all_members(), name=user_info[0], discriminator=user_info[1])
@@ -342,11 +300,8 @@ class TradeCogs(assignableCogs.AssignableCogs):
                 recipient_id = current_user.id
                 recipient_user = current_user
                 recipient_chars = chars_id
-            confirmation_code += chars_id
-            confirmation_code += "|"
-        confirmation_code = hashlib.sha256(confirmation_code.encode()).hexdigest()
         trade_model = Trade.create(applicant=applicant_id, recipient=recipient_id, applicant_cards=applicant_chars,
-                                   recipient_cards=recipient_chars, confirmation_code=confirmation_code)
+                                   recipient_cards=recipient_chars)
         trade_offer_embed = await self.generate_trade_offer(trade_model)
         trade_msg = await recipient_user.send(embed=trade_offer_embed)
         await origin_message.delete()
@@ -360,14 +315,12 @@ class TradeCogs(assignableCogs.AssignableCogs):
             return
         trade_id = self.retrieve_trade_id(origin_message.embeds[0])
         trade_model = Trade.get(Trade.id == trade_id)
-        if trade_model.state != 0:
-            await user_that_reacted.send("The trade offer has already been completed, you cannot change the outcome.")
-        else:
-            trade_model.state = 1
-            trade_model.save()
+        if trade_model.refuse_trade():
             applicant = await self.retrieve_member(trade_model.applicant)
             await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} has"
                                  f" been refused.")
+        else:
+            await user_that_reacted.send("The trade offer has already been completed, you cannot change the outcome.")
 
     async def accept_trade(self, origin_message: Message, user_that_reacted: User):
         selected_chars = self.retrieve_selected_chars(origin_message.embeds[0])
@@ -376,29 +329,10 @@ class TradeCogs(assignableCogs.AssignableCogs):
             return
         trade_id = self.retrieve_trade_id(origin_message.embeds)
         trade_model = Trade.get(Trade.id == trade_id)
-        if trade_model.state != 0:
-            await user_that_reacted.send("The trade offer has already been completed, you cannot change the outcome.")
-        else:
-            applicant_cards = trade_model.applicant_cards.split("-")
-            recipient_cards = trade_model.recipient_cards.split("-")
-
-            if applicant_cards and len(applicant_cards) > 0:
-                for card in applicant_cards:
-                    if card:
-                        ownership_model = CharactersOwnership.get(CharactersOwnership.id == int(card))
-                        ownership_model.discord_user_id = trade_model.recipient
-                        ownership_model.save()
-
-            if recipient_cards and len(recipient_cards) > 0:
-                for card in recipient_cards:
-                    if card:
-                        ownership_model = CharactersOwnership.get(CharactersOwnership.id == int(card))
-                        ownership_model.discord_user_id = trade_model.applicant
-                        ownership_model.save()
-
-            trade_model.state = 2
-            trade_model.save()
+        if trade_model.accept_trade():
             await user_that_reacted.send("The trade is complete.")
             applicant = await self.retrieve_member(trade_model.applicant)
             await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} has"
                                  f" been accepted!")
+        else:
+            await user_that_reacted.send("The trade offer has already been completed, you cannot change the outcome.")
