@@ -16,14 +16,15 @@ class ReportCogs(baseCogs.BaseCogs):
         self.enable()
 
     def enable(self):
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  constants.REPORT_EMOJI,
-                                                  self.report_message,
-                                                  constants.PUPPET_IDS["CARD_COGS_BUY"]))
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  constants.DETAILS_EMOJI,
-                                                  self.report_details,
-                                                  constants.PUPPET_IDS["REPORT_COGS_DETAIL"]))
+        # self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
+        #                                           constants.REPORT_EMOJI,
+        #                                           self.report_message,
+        #                                           constants.PUPPET_IDS["CARD_COGS_BUY"]))
+        # self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
+        #                                           constants.DETAILS_EMOJI,
+        #                                           self.report_details,
+        #                                           constants.PUPPET_IDS["REPORT_COGS_DETAIL"]))
+        pass
 
     def retrieve_character_id(self, embeds: Embed) -> int:
         return int(self.retrieve_from_embed(embeds, "Character_id: (\d+)"))

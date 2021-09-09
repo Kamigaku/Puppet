@@ -3,6 +3,7 @@ from discord.ext.commands import Context
 from discord.user import User
 from discord import Status
 from discordClient.cogs.abstract import baseCogs
+from discordClient.helper import constants
 from discordClient.model import Economy
 
 
@@ -17,12 +18,12 @@ class EconomyCogs(baseCogs.BaseCogs):
         if amount > 0:
             economy_model, model_created = Economy.get_or_create(discord_user_id=ctx.author.id)
             if economy_model.give_money(discord_user, amount):
-                await ctx.author.send(f"You have given {amount} biteCoin to "
+                await ctx.author.send(f"You have given {amount} {constants.COIN_NAME} to "
                                       f"{discord_user.name}#{discord_user.discriminator}")
-                await discord_user.send(f"You have been given {amount} biteCoin from "
+                await discord_user.send(f"You have been given {amount} {constants.COIN_NAME} from "
                                         f"{ctx.author.name}#{ctx.author.discriminator}")
             else:
-                await ctx.author.send(f"You wanted to give {amount} biteCoin but you don't have enough.")
+                await ctx.author.send(f"You wanted to give {amount} {constants.COIN_NAME} but you don't have enough.")
         else:
             await ctx.author.send("You cannot give a negative number.")
 

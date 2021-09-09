@@ -65,7 +65,7 @@ class PuppetBot(commands.Bot):
         return ""
 
     def append_listener(self, reaction_listener: ReactionListener):
-        if not inspect.ismethod(reaction_listener.callback):
+        if not inspect.ismethod(reaction_listener.callback) and not inspect.isfunction(reaction_listener.callback):
             raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" is not a function.")
         if not inspect.iscoroutinefunction(reaction_listener.callback):
             raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" is not a coroutine function.")
@@ -73,9 +73,9 @@ class PuppetBot(commands.Bot):
         if 1 < number_arguments < 2:
             raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" must have 1 or 2 parameters.\n"
                               f"The parameters needs to be: user, [emoji].")
-        if reaction_listener.message_id not in self.reaction_listeners:
-            self.reaction_listeners[reaction_listener.message_id] = []
-        self.reaction_listeners[reaction_listener.message_id].append(reaction_listener)
+        if reaction_listener.message.id not in self.reaction_listeners:
+            self.reaction_listeners[reaction_listener.message.id] = []
+        self.reaction_listeners[reaction_listener.message.id].append(reaction_listener)
 
     def remove_listener(self, message_id: int):
         if message_id in self.reaction_listeners:

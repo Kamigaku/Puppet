@@ -1,9 +1,9 @@
-from discord import User
+from discord import User, Message
 
 
 class ReactionListener:
 
-    def __init__(self, event_type, emoji, callback, message_id: int, bound_to: User = None,
+    def __init__(self, event_type, emoji, callback, message: Message, bound_to: User = None,
                  remove_reaction: bool = False, return_emoji: bool = False):
         if type(event_type) is not list:
             self.event_type = [event_type]
@@ -14,7 +14,7 @@ class ReactionListener:
         else:
             self.emoji = emoji
         self.callback = callback
-        self.message_id = message_id
+        self.message = message
         if bound_to is not None:
             self.bound_to = bound_to.id
         else:

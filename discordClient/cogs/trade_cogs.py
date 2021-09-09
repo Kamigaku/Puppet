@@ -15,44 +15,45 @@ class TradeCogs(assignableCogs.AssignableCogs):
         self.enable()
 
     def enable(self):
-        add_remove_reactions = [constants.REACTION_ADD, constants.REACTION_REMOVE]
-        arrow_emojis = [constants.LEFT_ARROW_EMOJI, constants.RIGHT_ARROW_EMOJI]
-
-        self.bot.append_listener(ReactionListener(add_remove_reactions,
-                                                  arrow_emojis,
-                                                  self.iterate_next_characters,
-                                                  constants.PUPPET_IDS["TRADE_COGS_LIST"],
-                                                  return_emoji=True))
-        number_emojis = constants.NUMBER_EMOJIS[1:].copy()
-        self.bot.append_listener(ReactionListener(add_remove_reactions,
-                                                  number_emojis,
-                                                  self.add_or_remove_item,
-                                                  constants.PUPPET_IDS["TRADE_COGS_LIST"],
-                                                  return_emoji=True))
-        self.bot.append_listener(ReactionListener(add_remove_reactions,
-                                                  constants.RED_CROSS_EMOJI,
-                                                  self.applicant_cancel_trade,
-                                                  constants.PUPPET_IDS["TRADE_COGS_LIST"]))
-        self.bot.append_listener(ReactionListener(add_remove_reactions,
-                                                  constants.CHECK_EMOJI,
-                                                  self.applicant_validate_trade,
-                                                  constants.PUPPET_IDS["TRADE_COGS_LIST"]))
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  constants.RED_CROSS_EMOJI,
-                                                  self.applicant_cancel_confirm,
-                                                  constants.PUPPET_IDS["TRADE_COGS_RECAP"]))
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  constants.CHECK_EMOJI,
-                                                  self.applicant_confirm,
-                                                  constants.PUPPET_IDS["TRADE_COGS_RECAP"]))
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  constants.RED_CROSS_EMOJI,
-                                                  self.refuse_trade,
-                                                  constants.PUPPET_IDS["TRADE_COGS_OFFER"]))
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  constants.CHECK_EMOJI,
-                                                  self.accept_trade,
-                                                  constants.PUPPET_IDS["TRADE_COGS_OFFER"]))
+        # add_remove_reactions = [constants.REACTION_ADD, constants.REACTION_REMOVE]
+        # arrow_emojis = [constants.LEFT_ARROW_EMOJI, constants.RIGHT_ARROW_EMOJI]
+        #
+        # self.bot.append_listener(ReactionListener(add_remove_reactions,
+        #                                           arrow_emojis,
+        #                                           self.iterate_next_characters,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_LIST"],
+        #                                           return_emoji=True))
+        # number_emojis = constants.NUMBER_EMOJIS[1:].copy()
+        # self.bot.append_listener(ReactionListener(add_remove_reactions,
+        #                                           number_emojis,
+        #                                           self.add_or_remove_item,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_LIST"],
+        #                                           return_emoji=True))
+        # self.bot.append_listener(ReactionListener(add_remove_reactions,
+        #                                           constants.RED_CROSS_EMOJI,
+        #                                           self.applicant_cancel_trade,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_LIST"]))
+        # self.bot.append_listener(ReactionListener(add_remove_reactions,
+        #                                           constants.CHECK_EMOJI,
+        #                                           self.applicant_validate_trade,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_LIST"]))
+        # self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
+        #                                           constants.RED_CROSS_EMOJI,
+        #                                           self.applicant_cancel_confirm,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_RECAP"]))
+        # self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
+        #                                           constants.CHECK_EMOJI,
+        #                                           self.applicant_confirm,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_RECAP"]))
+        # self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
+        #                                           constants.RED_CROSS_EMOJI,
+        #                                           self.refuse_trade,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_OFFER"]))
+        # self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
+        #                                           constants.CHECK_EMOJI,
+        #                                           self.accept_trade,
+        #                                           constants.PUPPET_IDS["TRADE_COGS_OFFER"]))
+        pass
 
     def retrieve_trade_id(self, embeds: Embed) -> int:
         trade_id = self.retrieve_from_embed(embeds, "Trade_id: (\d+)")

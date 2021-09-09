@@ -3,6 +3,7 @@ import unicodedata
 from discord import Colour
 
 BOT_PREFIX = "puppet_test"
+COIN_NAME = "biteCoin"
 
 LETTER_EMOJIS = [
     unicodedata.lookup(f'REGIONAL INDICATOR SYMBOL LETTER {chr(letter)}')
