@@ -16,6 +16,12 @@ class Character(BaseModel):
     rarity = IntegerField()
     url_link = TextField()
 
+    def __str__(self):
+        return f"{constants.RARITIES_EMOJI[self.rarity]} ** [{constants.RARITIES_LABELS[self.rarity]}] {self.name} **"
+
+    def __repr__(self):
+        return self.generate_embed()
+
     def generate_embed(self) -> Embed:
         # Description
         if len(self.description) > 255:

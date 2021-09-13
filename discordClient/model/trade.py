@@ -13,10 +13,14 @@ class Trade(BaseModel):
     recipient_cards = TextField(null=False)
     state = IntegerField(default=0)
 
+    def __repr__(self):
+        return self.generate_embed()
+
     def refuse_trade(self) -> bool:
         if self.state == 0:
             self.state = 1
             self.save()
+            return True
         else:
             return False
 

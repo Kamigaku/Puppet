@@ -17,6 +17,10 @@ class CharactersOwnership(BaseModel):
     is_sold = BooleanField(default=False)
     dropped_by = IntegerField(default=discord_user_id)
 
+    def __str__(self):
+        character_owned = Character.get_by_id()
+        return str(character_owned)
+
     def __repr__(self):
         return self.generate_embed()
 

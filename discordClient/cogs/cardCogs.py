@@ -8,7 +8,7 @@ from discord import User
 from discordClient.helper import constants
 from discordClient.cogs.abstract import assignableCogs
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, Embed
-from discordClient.views import PageView, PageModelView, PageReaction
+from discordClient.views import PageView, PageModelView, Reaction, Emoji
 
 
 class CardCogs(assignableCogs.AssignableCogs):
@@ -81,12 +81,12 @@ class CardCogs(assignableCogs.AssignableCogs):
                                      elements_per_page=10)
                 await page_view.display_menu(ctx)
 
-                reaction_characters = [PageReaction(event_type=constants.REACTION_ADD,
-                                                    emojis=constants.SELL_EMOJI,
-                                                    callback=self.sell_card),
-                                       PageReaction(event_type=constants.REACTION_ADD,
-                                                    emojis=constants.REPORT_EMOJI,
-                                                    callback=self.report_card)]
+                reaction_characters = [Reaction(event_type=constants.REACTION_ADD,
+                                                emojis=constants.SELL_EMOJI,
+                                                callback=sell_card),
+                                       Reaction(event_type=constants.REACTION_ADD,
+                                                emojis=constants.REPORT_EMOJI,
+                                                callback=report_card)]
 
                 characters_view = PageModelView(puppet_bot=self.bot,
                                                 elements_to_display=ownerships_models,
@@ -101,56 +101,54 @@ class CardCogs(assignableCogs.AssignableCogs):
                                   "the moderators.")
         self.bot.logger.info(f"Card distribution over for user: {ctx.author.id}")
 
-    ################################
-    #       CALLBACKS              #
-    ################################
 
-    async def sell_card(self, menu: PageView, user_that_reacted: User, emoji_used):
-        ownership_model = menu.retrieve_element(menu.offset)
-        if user_that_reacted.id == ownership_model.discord_user_id:
-            price_sold = ownership_model.sell()
-            if price_sold > 0:
-                await user_that_reacted.send(f"You have sold this card for {price_sold} {constants.COIN_NAME}.")
-            else:
-                await user_that_reacted.send(f"You have already sold this card and cannot sell it again. "
-                                             f"If you think this is an error, please communicate to a moderator.")
+async def sell_card(menu: PageView, user_that_reacted: User, emoji_used: Emoji):
+    ownership_model = menu.retrieve_element(menu.offset)
+    if user_that_reacted.id == ownership_model.discord_user_id:
+        price_sold = ownership_model.sell()
+        if price_sold > 0:
+            await user_that_reacted.send(f"You have sold this card for {price_sold} {constants.COIN_NAME}.")
         else:
-            await user_that_reacted.send("You are not the owner of the card, you cannot sell it.")
+            await user_that_reacted.send(f"You have already sold this card and cannot sell it again. "
+                                         f"If you think this is an error, please communicate to a moderator.")
+    else:
+        await user_that_reacted.send("You are not the owner of the card, you cannot sell it.")
 
-    async def report_card(self, menu: PageView, user_that_reacted: User):
-        character_id = menu.retrieve_element(menu.offset).character_id
-        character = Character.get_by_id(character_id)
-        embed = Embed()
-        embed.title = f"{constants.REPORT_EMOJI} Report a card"
-        embed.colour = 0xFF0000
-        embed.description = f"Hello, you are on your way to report the card **{character.name}**.\n\n"
-        embed.description += "Reporting a card means that the current card has something that you judge " \
-                             "incoherent, invalid or maybe because the card should not exist.\n\n **__Please " \
-                             "note that your report will be sent to a moderator that will review them in " \
-                             "order to judge if they are valid or not. Do not add any personal datas or " \
-                             "anything that could lead to a ban of the Puppet project.__**\n\n To be more " \
-                             "precise on the category of your report, you will find below a list of commands " \
-                             "that you can send to describe the type of report you want to do : "
-        embed.set_thumbnail(url=character.image_link)
-        embed.add_field(name="__Description incoherency__",
-                        value=f"{constants.BOT_PREFIX} report description {character_id} **\"[YOUR COMMENT]\"**",
-                        inline=False)
-        embed.add_field(name="__Invalid image__",
-                        value=f"{constants.BOT_PREFIX} report image {character_id} **\"[YOUR COMMENT]\"**",
-                        inline=False)
-        embed.add_field(name="__Invalid affiliation(s)__",
-                        value=f"{constants.BOT_PREFIX} report affiliation {character_id} **\"[YOUR COMMENT]\"**",
-                        inline=False)
-        embed.add_field(name="__Invalid name__",
-                        value=f"{constants.BOT_PREFIX} report name {character_id} **\"[YOUR COMMENT]\"**",
-                        inline=False)
-        embed.add_field(name="__Card incoherency__",
-                        value=f"{constants.BOT_PREFIX} report card {character_id} **\"[YOUR COMMENT]\"**",
-                        inline=False)
-        embed.add_field(name="__Other report__",
-                        value=f"{constants.BOT_PREFIX} report other {character_id} **\"[YOUR COMMENT]\"**",
-                        inline=False)
-        await user_that_reacted.send(embed=embed)
+
+async def report_card(menu: PageView, user_that_reacted: User, emoji_used: Emoji):
+    character_id = menu.retrieve_element(menu.offset).character_id
+    character = Character.get_by_id(character_id)
+    embed = Embed()
+    embed.title = f"{constants.REPORT_EMOJI} Report a card"
+    embed.colour = 0xFF0000
+    embed.description = f"Hello, you are on your way to report the card **{character.name}**.\n\n"
+    embed.description += "Reporting a card means that the current card has something that you judge " \
+                         "incoherent, invalid or maybe because the card should not exist.\n\n **__Please " \
+                         "note that your report will be sent to a moderator that will review them in " \
+                         "order to judge if they are valid or not. Do not add any personal datas or " \
+                         "anything that could lead to a ban of the Puppet project.__**\n\n To be more " \
+                         "precise on the category of your report, you will find below a list of commands " \
+                         "that you can send to describe the type of report you want to do : "
+    embed.set_thumbnail(url=character.image_link)
+    embed.add_field(name="__Description incoherency__",
+                    value=f"{constants.BOT_PREFIX} report description {character_id} **\"[YOUR COMMENT]\"**",
+                    inline=False)
+    embed.add_field(name="__Invalid image__",
+                    value=f"{constants.BOT_PREFIX} report image {character_id} **\"[YOUR COMMENT]\"**",
+                    inline=False)
+    embed.add_field(name="__Invalid affiliation(s)__",
+                    value=f"{constants.BOT_PREFIX} report affiliation {character_id} **\"[YOUR COMMENT]\"**",
+                    inline=False)
+    embed.add_field(name="__Invalid name__",
+                    value=f"{constants.BOT_PREFIX} report name {character_id} **\"[YOUR COMMENT]\"**",
+                    inline=False)
+    embed.add_field(name="__Card incoherency__",
+                    value=f"{constants.BOT_PREFIX} report card {character_id} **\"[YOUR COMMENT]\"**",
+                    inline=False)
+    embed.add_field(name="__Other report__",
+                    value=f"{constants.BOT_PREFIX} report other {character_id} **\"[YOUR COMMENT]\"**",
+                    inline=False)
+    await user_that_reacted.send(embed=embed)
 
 
 def distribute_random_character(rarities):
