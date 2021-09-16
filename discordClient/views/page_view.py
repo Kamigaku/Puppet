@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 from discord import Embed, User, Message, Emoji
 from discord.abc import Messageable
@@ -35,8 +35,8 @@ class ViewWithReactions(Disposable):
     def __init__(self, puppet_bot,
                  menu_title: str, elements_to_display: list,
                  author: User = None, bound_to: User = None, msg_content: str = None,
-                 reactions: list[Reaction] = None, delete_after: int = None,
-                 fields: list[Fields] = None, thumbnail: str = None):
+                 reactions: List[Reaction] = None, delete_after: int = None,
+                 fields: List[Fields] = None, thumbnail: str = None):
         self.puppet_bot = puppet_bot
         self.menu_title = menu_title
         self.elements = elements_to_display
@@ -119,7 +119,7 @@ class ViewWithReactions(Disposable):
         await self.menu_msg.edit(content=self.msg_content, embed=self.generate_embed())
 
     def update_datas(self, menu_title: str = None, elements_to_display: list = None,
-                     author: User = None, msg_content: str = None, fields: list[Fields] = None):
+                     author: User = None, msg_content: str = None, fields: List[Fields] = None):
         if menu_title is not None:
             self.menu_title = menu_title
         if elements_to_display is not None:
@@ -142,7 +142,7 @@ class ViewWithReactions(Disposable):
                 return reaction
         return None
 
-    def retrieve_fields(self) -> list[Fields]:
+    def retrieve_fields(self) -> List[Fields]:
         return self.fields
 
     def retrieve_field(self, index: int) -> Fields:
@@ -162,9 +162,9 @@ class PageView(ViewWithReactions):
     def __init__(self, puppet_bot,
                  menu_title: str, elements_to_display: list,
                  author: User = None, bound_to: User = None, msg_content: str = None,
-                 reactions: list[Reaction] = [], delete_after: int = None,
+                 reactions: List[Reaction] = [], delete_after: int = None,
                  callback_prev=None, callback_next=None, elements_per_page: int = 1,
-                 fields: list[Fields] = None, thumbnail: str = None):
+                 fields: List[Fields] = None, thumbnail: str = None):
 
         reactions.insert(0, Reaction(event_type=[constants.REACTION_ADD, constants.REACTION_REMOVE],
                                      emojis=constants.RIGHT_ARROW_EMOJI,
@@ -243,9 +243,9 @@ class PageView123(PageView):
     def __init__(self, puppet_bot,
                  menu_title: str, elements_to_display: list,
                  author: User = None, bound_to: User = None, msg_content: str = None,
-                 reactions: list[Reaction] = [], delete_after: int = None,
+                 reactions: List[Reaction] = [], delete_after: int = None,
                  callback_prev=None, callback_next=None, elements_per_page: int = 1,
-                 fields: list[Fields] = None, thumbnail: str = None,
+                 fields: List[Fields] = None, thumbnail: str = None,
                  callback_number=None):
         reactions.append(Reaction(event_type=[constants.REACTION_ADD, constants.REACTION_REMOVE],
                                   emojis=constants.NUMBER_EMOJIS[1:],
@@ -283,10 +283,10 @@ class PageView123(PageView):
 class PageModelView(PageView):
 
     def __init__(self, puppet_bot, elements_to_display: list, menu_title: str = "",
-                 reactions: list[Reaction] = [], delete_after: int = None,
+                 reactions: List[Reaction] = [], delete_after: int = None,
                  callback_prev=None, callback_next=None,
                  bound_to: User = None, author: User = None, msg_content: str = None,
-                 fields: list[Fields] = None, thumbnail: str = None):
+                 fields: List[Fields] = None, thumbnail: str = None):
         super(PageModelView, self).__init__(puppet_bot=puppet_bot,
                                             menu_title=menu_title,
                                             elements_to_display=elements_to_display,
