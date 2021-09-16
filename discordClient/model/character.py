@@ -39,14 +39,16 @@ class Character(BaseModel):
         icon_url = constants.RARITIES_URL.format(constants.RARITIES_HEXA[self.rarity])
 
         # Author
-        embed.set_author(name=self.name, icon_url=icon_url, url=self.url_link)
+        if self.url_link is not None:
+            embed.set_author(name=self.name, icon_url=icon_url, url=self.url_link)
+        else:
+            embed.set_author(name=self.name, icon_url=icon_url)
 
         # Footer
         footer_text = f"Rarity: {constants.RARITIES_LABELS[self.rarity]}"
         affiliations = self.retrieve_affiliations()
         if affiliations:
             footer_text += f" | Affiliation(s): {', '.join(affiliations)}"
-        footer_text += f" | Character_id: {self.get_id()}"
         embed.set_footer(text=footer_text,
                          icon_url=icon_url)
         return embed

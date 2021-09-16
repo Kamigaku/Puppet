@@ -43,7 +43,8 @@ class TradeCogs(assignableCogs.AssignableCogs):
                                        bound_to=ctx.author,
                                        fields=fields,
                                        reactions=reaction_recap_menu,
-                                       thumbnail=discord_user.avatar_url)
+                                       thumbnail=discord_user.avatar_url,
+                                       delete_after=600)
         await recap_menu.display_menu(ctx)
 
         query, elements_to_display = self.generate_request(ctx.author.id)
@@ -59,7 +60,8 @@ class TradeCogs(assignableCogs.AssignableCogs):
                                 elements_per_page=10,
                                 bound_to=ctx.author,
                                 reactions=reaction_list_menu,
-                                callback_number=self.update_trade_offer)
+                                callback_number=self.update_trade_offer,
+                                delete_after=600)
 
         trade_data = TradeData(request=query,
                                bounded_view=recap_menu,
@@ -180,12 +182,12 @@ class TradeCogs(assignableCogs.AssignableCogs):
         query = (CharactersOwnership.select(CharactersOwnership.id, CharactersOwnership.discord_user_id,
                                             Character.name, Character.category, Character.rarity, Character.id,
                                             fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
-                 .join_from(CharactersOwnership, Character)
-                 .join_from(Character, CharacterAffiliation)
-                 .join_from(CharacterAffiliation, Affiliation)
-                 .where(CharactersOwnership.discord_user_id == user_id)
-                 .group_by(CharactersOwnership.id)
-                 .order_by(Character.rarity.desc(), Character.name.asc()))
+                                    .join_from(CharactersOwnership, Character)
+                                    .join_from(Character, CharacterAffiliation)
+                                    .join_from(CharacterAffiliation, Affiliation)
+                                    .where(CharactersOwnership.discord_user_id == user_id)
+                                    .group_by(CharactersOwnership.id)
+                                    .order_by(Character.rarity.desc(), Character.name.asc()))
 
         elements_to_display = []
         for ownership in query:

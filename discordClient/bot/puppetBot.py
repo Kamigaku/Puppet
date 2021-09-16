@@ -3,14 +3,14 @@ import inspect
 import logging
 
 from discord.ext import commands
-from discord import Intents, RawReactionActionEvent, Embed
+from discord import Intents, RawReactionActionEvent, Embed, RawMessageDeleteEvent
 
 from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
 from discordClient.cogs.museumCogs import MuseumCogs
 from discordClient.cogs.report_cogs import ReportCogs
 from discordClient.cogs.trade_cogs import TradeCogs
-from discordClient.helper.reaction_listener import ReactionListener
+from discordClient.helper.listener import ReactionListener, DeleteListener
 
 
 class PuppetBot(commands.Bot):
@@ -22,6 +22,7 @@ class PuppetBot(commands.Bot):
         intents.reactions = True
         super().__init__(command_prefix=commands_prefix, intents=intents)
         self.reaction_listeners = {}
+        self.delete_listeners = {}
 
         handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
         handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
@@ -49,22 +50,7 @@ class PuppetBot(commands.Bot):
         self.add_cog(ReportCogs(self))
         self.add_cog(TradeCogs(self))
 
-    def retrieve_puppet_id(self, embeds: Embed) -> int:
-        puppet_id_str = self.retrieve_from_embed(embeds, "Puppet_id: (\d+)")
-        if not puppet_id_str:
-            return None
-        return int(puppet_id_str)
-
-    def retrieve_from_embed(self, embeds: Embed, pattern: str):
-        if embeds is not None and len(embeds) > 0:
-            for embed in embeds:
-                if embed.footer is not None:
-                    regex_result = re.search(pattern=pattern, string=embed.footer.text)
-                    if regex_result:
-                        return regex_result.group(1)
-        return ""
-
-    def append_listener(self, reaction_listener: ReactionListener):
+    def append_reaction_listener(self, reaction_listener: ReactionListener):
         if not inspect.ismethod(reaction_listener.callback) and not inspect.isfunction(reaction_listener.callback):
             raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" is not a function.")
         if not inspect.iscoroutinefunction(reaction_listener.callback):
@@ -77,9 +63,14 @@ class PuppetBot(commands.Bot):
             self.reaction_listeners[reaction_listener.message.id] = []
         self.reaction_listeners[reaction_listener.message.id].append(reaction_listener)
 
-    def remove_listener(self, message_id: int):
+    def remove_reaction_listener(self, message_id: int):
         if message_id in self.reaction_listeners:
+            self.logger.info(f"Removing the listener for the message id {message_id}")
             self.reaction_listeners.pop(message_id)
+
+    def append_delete_listener(self, delete_listener: DeleteListener):
+        if delete_listener.message.id not in self.delete_listeners:
+            self.delete_listeners[delete_listener.message.id] = delete_listener
 
     ################################
     #       LISTENERS BOT          #
@@ -118,3 +109,9 @@ class PuppetBot(commands.Bot):
                         await reaction_listener.callback(user_that_reacted)
                     else:
                         await reaction_listener.callback(user_that_reacted, payload.emoji)
+
+    async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
+        if payload.message_id in self.delete_listeners:
+            self.logger.info(f"Disposing the message id {payload.message_id}")
+            self.delete_listeners[payload.message_id].dispose()
+            self.delete_listeners.pop(payload.message_id)

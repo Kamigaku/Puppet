@@ -5,7 +5,7 @@ from discord.ext.commands import Context
 from peewee import DoesNotExist
 from discordClient.cogs.abstract import baseCogs
 from discordClient.helper import constants
-from discordClient.helper.reaction_listener import ReactionListener
+from discordClient.helper.listener import ReactionListener
 from discordClient.model import Character, Report, Moderator
 
 
@@ -83,24 +83,24 @@ class ReportCogs(baseCogs.BaseCogs):
         Report.create(category=category, card_id=card_id, comment=comment, reporter_user_id=ctx.author.id)
         await ctx.author.send(f"{constants.CHECK_EMOJI} Your report has been sent.")
 
-    @commands.command("report_display")
-    async def report_display(self, ctx: Context):
-        try:
-            Moderator.get(Moderator.discord_user_id == ctx.author.id)
-            reports = Report.select().where(Report.has_been_treated == False)
-            for report in reports:
-                author = await self.retrieve_member(report.reporter_user_id)
-                report_embed = report.generate_embed()
-                footer_proxy = report_embed.footer
-                report_embed.set_footer(
-                    text=f"Report done by {author.name}#{author.discriminator} | {footer_proxy.text} | "
-                         f"Puppet_id: {constants.PUPPET_IDS['REPORT_COGS_DETAIL']}",
-                    icon_url=footer_proxy.icon_url)
-                msg = await ctx.author.send(embed=report_embed)
-                await msg.add_reaction(constants.DETAILS_EMOJI)
-        except DoesNotExist:
-            await ctx.author.send(f"{constants.WARNING_EMOJI} You are not a moderator, you cannot access this "
-                                  f"functionality. {constants.WARNING_EMOJI}")
+    # @commands.command("report_display")
+    # async def report_display(self, ctx: Context):
+    #     try:
+    #         Moderator.get(Moderator.discord_user_id == ctx.author.id)
+    #         reports = Report.select().where(Report.has_been_treated == False)
+    #         for report in reports:
+    #             author = await self.retrieve_member(report.reporter_user_id)
+    #             report_embed = report.generate_embed()
+    #             footer_proxy = report_embed.footer
+    #             report_embed.set_footer(
+    #                 text=f"Report done by {author.name}#{author.discriminator} | {footer_proxy.text} | "
+    #                      f"Puppet_id: {constants.PUPPET_IDS['REPORT_COGS_DETAIL']}",
+    #                 icon_url=footer_proxy.icon_url)
+    #             msg = await ctx.author.send(embed=report_embed)
+    #             await msg.add_reaction(constants.DETAILS_EMOJI)
+    #     except DoesNotExist:
+    #         await ctx.author.send(f"{constants.WARNING_EMOJI} You are not a moderator, you cannot access this "
+    #                               f"functionality. {constants.WARNING_EMOJI}")
 
     @commands.command("report_fix")
     async def report_fix(self, ctx: Context, report_id: int, report_fix: str):

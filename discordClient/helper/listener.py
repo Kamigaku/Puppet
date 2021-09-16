@@ -1,5 +1,7 @@
 from discord import User, Message
 
+from discordClient.helper.disposable import Disposable
+
 
 class ReactionListener:
 
@@ -21,3 +23,13 @@ class ReactionListener:
             self.bound_to = None
         self.remove_reaction = remove_reaction
         self.return_emoji = return_emoji
+
+
+class DeleteListener:
+
+    def __init__(self, message: Message, disposable_object: Disposable):
+        self.message = message
+        self.disposable_object = disposable_object
+
+    def dispose(self):
+        self.disposable_object.dispose()

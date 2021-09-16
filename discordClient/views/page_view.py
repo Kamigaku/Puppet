@@ -4,7 +4,8 @@ from discord import Embed, User, Message, Emoji
 from discord.abc import Messageable
 
 from discordClient.helper import constants
-from discordClient.helper.reaction_listener import ReactionListener
+from discordClient.helper.disposable import Disposable
+from discordClient.helper.listener import ReactionListener, DeleteListener
 
 
 class Reaction:
@@ -29,7 +30,7 @@ class Fields:
         self.inline = inline
 
 
-class ViewWithReactions:
+class ViewWithReactions(Disposable):
 
     def __init__(self, puppet_bot,
                  menu_title: str, elements_to_display: list,
@@ -49,9 +50,9 @@ class ViewWithReactions:
         self.fields = fields
         self.thumbnail = thumbnail
 
-    def __del__(self):
+    def dispose(self):
         if self.menu_msg is not None:
-            self.puppet_bot.remove_listener(self.menu_msg.id)
+            self.puppet_bot.remove_reaction_listener(self.menu_msg.id)
 
     def set_hidden_data(self, hidden_data: Any):
         self.hidden_data = hidden_data
@@ -70,14 +71,18 @@ class ViewWithReactions:
             self.menu_msg = await context.send(embed=menu_embed,
                                                delete_after=self.delete_after)
 
+        if self.menu_msg is not None:
+            self.puppet_bot.append_delete_listener(DeleteListener(message=self.menu_msg,
+                                                                  disposable_object=self))
+
         if self.reactions is not None:
             for reaction in self.reactions:
-                self.puppet_bot.append_listener(ReactionListener(reaction.event_type,
-                                                                 reaction.emojis,
-                                                                 self.reaction_callback,
-                                                                 self.menu_msg,
-                                                                 bound_to=self.bound_to,
-                                                                 return_emoji=True))
+                self.puppet_bot.append_reaction_listener(ReactionListener(reaction.event_type,
+                                                                          reaction.emojis,
+                                                                          self.reaction_callback,
+                                                                          self.menu_msg,
+                                                                          bound_to=self.bound_to,
+                                                                          return_emoji=True))
                 for emoji in reaction.emojis:
                     await self.menu_msg.add_reaction(emoji)
 
@@ -91,7 +96,12 @@ class ViewWithReactions:
         menu_embed.title = self.menu_title
         menu_embed.description = self.generate_description()
         if self.fields is not None:
-            for field in self.fields:
+            if type(self.fields) is list:
+                current_field = self.fields[self.offset]
+            else:
+                current_field = self.fields
+
+            for field in current_field:
                 menu_embed.add_field(name=field.title,
                                      value=field.data,
                                      inline=field.inline)
@@ -292,11 +302,28 @@ class PageModelView(PageView):
                                             thumbnail=thumbnail)
 
     def generate_embed(self):
-        if self.elements is list:
+        if type(self.elements) is list:
             menu_embed = self.elements[self.offset].__repr__()
             footer_proxy = menu_embed.footer
             menu_embed.set_footer(text=f"{footer_proxy.text} | Page: {self.offset + 1}",
                                   icon_url=footer_proxy.icon_url)
+            if self.fields is not None:
+                if type(self.fields) is list:
+                    current_field = self.fields[self.offset]
+                else:
+                    current_field = self.fields
+
+                for field in current_field:
+                    menu_embed.add_field(name=field.title,
+                                         value=field.data,
+                                         inline=field.inline)
             return menu_embed
         else:
             return self.elements.__repr__()
+
+        # working
+        # menu_embed = self.elements[self.offset].__repr__()
+        # footer_proxy = menu_embed.footer
+        # menu_embed.set_footer(text=f"{footer_proxy.text} | Page: {self.offset + 1}",
+        #                       icon_url=footer_proxy.icon_url)
+        return menu_embed

@@ -3,12 +3,13 @@ import uuid
 from itertools import groupby
 from discord.ext import commands
 from discord.ext.commands import Context
-from discord import User
+from discord import User, Member
+from peewee import fn, JOIN
 
 from discordClient.helper import constants
 from discordClient.cogs.abstract import assignableCogs
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, Embed
-from discordClient.views import PageView, PageModelView, Reaction, Emoji
+from discordClient.views import PageView, PageModelView, Reaction, Emoji, Fields
 
 
 class CardCogs(assignableCogs.AssignableCogs):
@@ -89,7 +90,7 @@ class CardCogs(assignableCogs.AssignableCogs):
                                                 callback=report_card)]
 
                 characters_view = PageModelView(puppet_bot=self.bot,
-                                                elements_to_display=ownerships_models,
+                                                elements_to_display=list(ownerships_models),
                                                 bound_to=ctx.author,
                                                 reactions=reaction_characters)
                 await characters_view.display_menu(ctx)
@@ -100,6 +101,70 @@ class CardCogs(assignableCogs.AssignableCogs):
             await ctx.author.send("You are already opening a booster. If you think this is an error, contact one of "
                                   "the moderators.")
         self.bot.logger.info(f"Card distribution over for user: {ctx.author.id}")
+
+    @commands.command()
+    async def search(self, ctx: Context, name: str):
+        if len(name) < 3:
+            await ctx.send("The research need to have more than 2 characters.", delete_after=30)
+        else:
+            mutual_guilds = ctx.author.mutual_guilds
+            active_ids = []
+            for mutual_guild in mutual_guilds:
+                for member in mutual_guild.members:
+                    if member.id not in active_ids:
+                        active_ids.append(member.id)
+
+            query = (Character.select(Character.id, Character.name, Character.description, Character.image_link,
+                                      Character.rarity,
+                                      fn.GROUP_CONCAT(CharactersOwnership.discord_user_id, ",").alias("owners"))
+                              .join_from(Character, CharactersOwnership,
+                                         join_type=JOIN.LEFT_OUTER)
+                              .where(Character.name.contains(name))
+                              .group_by(Character.id)
+                              .order_by(Character.rarity.desc()))
+
+            characters_field = []
+            for character in query:
+                mutual_owners = []
+                if character.owners is not None:
+                    splitted_owners = str(character.owners).split(",")
+                    for owner in splitted_owners:
+                        if int(owner) in active_ids and int(owner) not in mutual_owners:
+                            mutual_owners.append(int(owner))
+                character_field = Fields(title="Owners of the card",
+                                         data=CardOwnerFieldData())
+                for mutual_owner in mutual_owners:
+                    character_field.data.update_owner(self.bot.get_user(mutual_owner))
+                characters_field.append([character_field])
+
+            search_menu = PageModelView(puppet_bot=self.bot,
+                                        elements_to_display=list(query),
+                                        msg_content=f"Found {query.count()} result(s).",
+                                        bound_to=ctx.author,
+                                        fields=characters_field,
+                                        delete_after=600)
+            await search_menu.display_menu(ctx)
+
+
+class CardOwnerFieldData:
+
+    def __init__(self):
+        self.owners = []
+
+    def __str__(self):
+        if len(self.owners) == 0:
+            return "Nobody"
+        else:
+            character_list = ""
+            for owner in self.owners:
+                character_list += f"{owner.name}#{owner.discriminator}\n"
+            return character_list
+
+    def update_owner(self, owner: Member):
+        if owner in self.owners:
+            self.owners.remove(owner)
+        else:
+            self.owners.append(owner)
 
 
 async def sell_card(menu: PageView, user_that_reacted: User, emoji_used: Emoji):

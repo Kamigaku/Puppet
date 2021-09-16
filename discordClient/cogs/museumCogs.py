@@ -72,7 +72,8 @@ class MuseumCogs(assignableCogs.AssignableCogs):
                                     elements_per_page=10,
                                     author=museum_filter.owner,
                                     reactions=reaction_museum,
-                                    callback_number=self.menu_choices_to_path)
+                                    callback_number=self.menu_choices_to_path,
+                                    delete_after=600)
         category_menu.set_hidden_data(museum_filter)
         await category_menu.display_menu(ctx)
 
@@ -199,7 +200,8 @@ class MuseumCogs(assignableCogs.AssignableCogs):
 
         # Then we filter on only the owned card
         query = (query.join_from(Character, CharactersOwnership, on=(CharactersOwnership.character_id == Character.id))
-                      .where(CharactersOwnership.discord_user_id == museum_filter.owner.id)
+                      .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                             (CharactersOwnership.is_sold == False))
                       .group_by(Character.id)
                       .order_by(Character.name))
 
@@ -246,9 +248,10 @@ class MuseumCogs(assignableCogs.AssignableCogs):
                                         callback=cardCogs.report_card)]
 
         characters_view = PageModelView(puppet_bot=self.bot,
-                                        elements_to_display=ownership_models,
+                                        elements_to_display=list(ownership_models),
                                         bound_to=menu_update.bound_to,
-                                        reactions=reaction_characters)
+                                        reactions=reaction_characters,
+                                        delete_after=60)
         await characters_view.display_menu(menu_update.menu_msg.channel)
 
 
