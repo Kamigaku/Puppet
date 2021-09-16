@@ -2,7 +2,7 @@ import unicodedata
 
 from discord import Colour
 
-BOT_PREFIX = "puppet_test"
+BOT_PREFIX = "puppet"
 COIN_NAME = "biteCoin"
 
 LETTER_EMOJIS = [
