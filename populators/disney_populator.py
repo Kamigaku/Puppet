@@ -1,9 +1,11 @@
+import re
+
 from mwclient import Site
 import html2text
+from peewee import DoesNotExist
 from requests import HTTPError
-import sys
 
-from discordClient.model.models import *
+from discordClient.model import Affiliation, Character, CharacterAffiliation
 
 
 def extract_informations(text: str):
@@ -197,7 +199,6 @@ if __name__ == '__main__':
                                                 .where((CharacterAffiliation.character_id == character_model.get_id()) &
                                                        (CharacterAffiliation.affiliation_id == affiliation_model.get_id()))
                                                 .get())
-                        print("hey")
                     except DoesNotExist:
                         character_affiliation_model = CharacterAffiliation(character_id=character_model.get_id(),
                                                                            affiliation_id=affiliation_model.get_id())

@@ -1,15 +1,17 @@
-import math
 # import datapane as dp
 # import pandas as pd
-from discord import Embed, RawReactionActionEvent, Message, User, Emoji, DMChannel
+from typing import Any
+
+from discord import User, Emoji
 from discord.ext import commands
 from discord.ext.commands import Context
+
+from discordClient.cogs import cardCogs
 from discordClient.cogs.abstract import assignableCogs
 from discordClient.helper import constants
-from discordClient.helper.reaction_listener import ReactionListener
-from discordClient.model.models import Character, Affiliation, CharacterAffiliation, \
-    CharactersOwnership
-from discordClient.cogs import cardCogs
+from discordClient.model import Character, Affiliation, fn, CharacterAffiliation, CharactersOwnership
+from discordClient.views import Reaction, PageView123, PageModelView
+
 
 # The organisation is like that
 #
@@ -17,15 +19,15 @@ from discordClient.cogs import cardCogs
 #    # MENU - Categories #    # MENU - Choice     #      # MENU - Rarity     #
 #    #    A - Disney     #    #    A - Rarity     #  A   #    A - Common     #
 #    #    ...            # => #    B - Affiliation# ===> #    B - Rary       # ==============================>|
-#    #    * - All        #    #    * - All        #      #    ...            #                                |
-#    #####################    #####################      #    * - All        #                                |
+#    #    * - All      1 #    #    * - All      2 #      #    ...            #                                |
+#    #####################    #####################      #    * - All      3 #                                |
 #                                      |                 #####################                                |
 #                                      |                                                                      |
 #                                      |                 #####################         #####################  |
 #                                      |                 # MENU - Letter     #   si    # MENU - Feature    #  |
 #                                      |         B       #    A              # B avant #    A              # >|
 #                                      |==============>  #    ...            #   ===>  #    ...            #  |
-#                                      |                 #    J              #         #    J              #  |
+#                                      |                 #    J            4 #         #    J            5 #  |
 #                                      |                 #####################         #####################  |
 #                                      |                                                                      |
 #                                      |                                                            v=========|
@@ -33,7 +35,7 @@ from discordClient.cogs import cardCogs
 #                                      | si *                                            # Affichage perso   #
 #                                      |================================================>#                   #
 #                                                                                        #                   # ==| Loop
-#                                                                                        #                   # <=|
+#                                                                                        #                 6 # <=|
 #                                                                                        #####################
 #
 
@@ -42,99 +44,38 @@ class MuseumCogs(assignableCogs.AssignableCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "museum")
-        self.enable()
-
-    def enable(self):
-        categories_emojis = constants.LETTER_EMOJIS.copy()
-        categories_emojis.append(constants.ASTERISK_EMOJI)
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  categories_emojis,
-                                                  self.menu_categories_to_choice,
-                                                  constants.PUPPET_IDS["MUSEUM_COGS_CATEGORIES"],
-                                                  return_emoji=True))
-        types_emojis = [constants.LETTER_EMOJIS[0], constants.LETTER_EMOJIS[1], constants.ASTERISK_EMOJI]
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  types_emojis,
-                                                  self.menu_choices_to_path,
-                                                  constants.PUPPET_IDS["MUSEUM_COGS_TYPES"],
-                                                  return_emoji=True))
-        affiliations_emojis = constants.LETTER_EMOJIS.copy()
-        affiliations_emojis.append(constants.LEFT_ARROW_EMOJI)
-        affiliations_emojis.append(constants.RIGHT_ARROW_EMOJI)
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  affiliations_emojis,
-                                                  self.menu_letters_to_path,
-                                                  constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATION_LETTERS"],
-                                                  return_emoji=True))
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  affiliations_emojis,
-                                                  self.menu_affiliations_to_path,
-                                                  constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATIONS"],
-                                                  return_emoji=True))
-        rarities_emojis = constants.RARITIES_EMOJI.copy()
-        rarities_emojis.append(constants.ASTERISK_EMOJI)
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  rarities_emojis,
-                                                  self.menu_rarities_to_character,
-                                                  constants.PUPPET_IDS["MUSEUM_COGS_RARITIES"],
-                                                  return_emoji=True))
-        characters_emojis = [constants.LEFT_ARROW_EMOJI, constants.RIGHT_ARROW_EMOJI]
-        self.bot.append_listener(ReactionListener(constants.REACTION_ADD,
-                                                  characters_emojis,
-                                                  self.menu_characters_to_next_page,
-                                                  constants.PUPPET_IDS["MUSEUM_COGS_CHARACTERS"],
-                                                  return_emoji=True))
-
-    def retrieve_category_name(self, embeds: Embed) -> str:
-        return self.retrieve_from_embed(embeds, "Category: (\w+)")
-
-    def retrieve_offset(self, embeds: Embed) -> int:
-        offset = self.retrieve_from_embed(embeds, "Offset: (\d+)")
-        if offset:
-            return int(offset)
-        return 0
-
-    def retrieve_letter(self, embeds: Embed) -> str:
-        return self.retrieve_from_embed(embeds, "Letter: (\w+)")
-
-    def retrieve_rarity(self, embeds: Embed) -> int:
-        rarity = self.retrieve_from_embed(embeds, "Rarity: (\d+)")
-        if rarity:
-            return int(rarity)
-        return -1
-
-    def retrieve_affiliation(self, embeds: Embed) -> str:
-        return self.retrieve_from_embed(embeds, "Affiliation: (\w+)")
-
-    ################################
-    #       MODEL METHODS          #
-    ################################
-
-    def retrieve_characters_category(self):
-        return Character.select(Character.category).group_by(Character.category)
-
-    def retrieve_affiliations(self, category: str, letter: str):
-        if category != "All":
-            affiliations = (Affiliation.select(Affiliation)
-                            .join(CharacterAffiliation)
-                            .join(Character)
-                            .where(Affiliation.name.startswith(letter),
-                                   Character.category == category)
-                            .group_by(Affiliation.name)
-                            .order_by(Affiliation.name.asc()))
-        else:
-            affiliations = (Affiliation.select(Affiliation)
-                            .where(Affiliation.name.startswith(letter))
-                            .order_by(Affiliation.name.asc()))
-        return affiliations
 
     ################################
     #       COMMAND COGS           #
     ################################
 
     @commands.command("museum")
-    async def museum(self, ctx: Context):
-        await self.display_menu_categories(ctx)
+    async def museum(self, ctx: Context, owner: User = None):
+        menu_title = "Select the category you want to display"
+        character_categories = Character.select(Character.category).group_by(Character.category)
+        categories = []
+        for character_category in character_categories:
+            categories.append(f"{character_category.category}")
+
+        if owner is None:
+            museum_filter = MuseumDataFilter(ctx.author)
+        else:
+            museum_filter = MuseumDataFilter(owner)
+
+        reaction_museum = [Reaction(event_type=[constants.REACTION_ADD, constants.REACTION_REMOVE],
+                                    emojis=constants.ASTERISK_EMOJI,
+                                    callback=self.display_characters)]
+
+        category_menu = PageView123(puppet_bot=self.bot,
+                                    menu_title=menu_title,
+                                    elements_to_display=categories,
+                                    elements_per_page=10,
+                                    author=museum_filter.owner,
+                                    reactions=reaction_museum,
+                                    callback_number=self.menu_choices_to_path,
+                                    delete_after=600)
+        category_menu.set_hidden_data(museum_filter)
+        await category_menu.display_menu(ctx)
 
     # @commands.command("report")
     # async def report(self, ctx: Context):
@@ -153,250 +94,186 @@ class MuseumCogs(assignableCogs.AssignableCogs):
     #       CALLBACKS              #
     ################################
 
-    async def menu_categories_to_choice(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        if emoji.name == constants.ASTERISK_EMOJI:
-            await self.display_menu_types(origin_message, "All")
+    # Menu #2
+    async def menu_categories_to_choice(self, menu_update: PageView123, user_that_reacted: User,
+                                        emoji: Emoji = None):
+        if emoji is None:  # all
+            pass
         else:
-            # Il faudra gérer une exception ValueError ici
-            index_category = constants.LETTER_EMOJIS.index(emoji.name)
-            category = self.retrieve_characters_category()[index_category].category
-            await self.display_menu_types(origin_message, category)
+            index = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
+            category = menu_update.retrieve_element_by_offset(index)
+            if category is None:
+                return
 
-    async def menu_choices_to_path(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        if emoji.name == constants.LETTER_EMOJIS[0]:  # A - Rarities
-            await self.display_menu_rarities(origin_message, category)
-        elif emoji.name == constants.LETTER_EMOJIS[1]:  # B - Affiliation
-            await self.display_menu_letters(origin_message, category,
-                                            constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATION_LETTERS"])
-        else:  # * - All
-            await self.display_characters(origin_message, category, user_that_reacted.id)
+            reaction = menu_update.retrieve_reaction(emoji.name)
+            reaction.callback = self.menu_choices_to_path
 
-    async def menu_letters_to_path(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        current_offset = self.retrieve_offset(origin_message.embeds)
-        if emoji.name == constants.LEFT_ARROW_EMOJI:
-            current_offset -= 1
-        elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-            current_offset += 1
-        elif emoji.name in constants.LETTER_EMOJIS:
-            letter_index = constants.LETTER_EMOJIS.index(emoji.name) + 65
-            await self.display_menu_affiliations(origin_message, category, str(chr(letter_index)))
+            menu_update.update_datas(menu_title="Select the filter you want to apply",
+                                     elements_to_display=["Rarities", "Affiliations"])
+            hidden_data = menu_update.retrieve_hidden_data()
+            hidden_data.set_category(category=category)
+            menu_update.set_hidden_data(hidden_data)
+            await menu_update.update_menu()
+
+    # Menu #3 or #4
+    async def menu_choices_to_path(self, menu_update: PageView123, user_that_reacted: User,
+                                   emoji: Emoji = None):
+        index = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
+        path = menu_update.retrieve_element_by_offset(index)
+
+        if path is None:
             return
-        await self.display_menu_letters(origin_message, category, constants.PUPPET_IDS["MUSEUM_COGS_AFFILIATIONS"],
-                                        current_offset)
 
-    async def menu_affiliations_to_path(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        current_offset = self.retrieve_offset(origin_message.embeds)
-        current_letter = self.retrieve_letter(origin_message.embeds)
-        if emoji.name == constants.LEFT_ARROW_EMOJI:
-            current_offset -= 1
-        elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-            current_offset += 1
-        elif emoji.name in constants.LETTER_EMOJIS:
-            affiliations = self.retrieve_affiliations(category, current_letter)
-            index_affiliation_selected = constants.LETTER_EMOJIS.index(emoji.name)
-            index_affiliation_selected += (current_offset * 10)
-            await self.display_characters(origin_message, category, user_that_reacted.id,
-                                          affiliation=affiliations[index_affiliation_selected].name)
-            return
-        await self.display_menu_affiliations(origin_message, category, current_letter, current_offset)
+        if index == 0:  # Rarity
+            menu_content = []
+            for _ in range(0, len(constants.RARITIES_EMOJI)):
+                menu_content.append(f"{constants.RARITIES_EMOJI[_]} **{constants.RARITIES_LABELS[_]}**")
 
-    async def menu_rarities_to_character(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        if str(emoji) in constants.RARITIES_EMOJI:
-            index_rarity = constants.RARITIES_EMOJI.index(str(emoji))
-            await self.display_characters(origin_message, category, user_that_reacted.id, index_rarity)
-        elif emoji.name == constants.ASTERISK_EMOJI:
-            await self.display_characters(origin_message, category, user_that_reacted.id)
+            reaction = menu_update.retrieve_reaction(emoji.name)
+            reaction.callback = self.rarity_selected
 
-    async def menu_characters_to_next_page(self, origin_message: Message, user_that_reacted: User, emoji: Emoji):
-        category = self.retrieve_category_name(origin_message.embeds)
-        current_offset = self.retrieve_offset(origin_message.embeds)
-        current_rarity = self.retrieve_rarity(origin_message.embeds)
-        current_affiliation = self.retrieve_affiliation(origin_message.embeds)
-        if emoji.name == constants.LEFT_ARROW_EMOJI:
-            current_offset -= 1
-        elif emoji.name == constants.RIGHT_ARROW_EMOJI:
-            current_offset += 1
-        await self.display_characters(origin_message, category, user_that_reacted.id, current_rarity,
-                                      current_affiliation, current_offset, False)
+            menu_update.update_datas(menu_title="Select the rarity you want to display",
+                                     elements_to_display=menu_content)
 
-    ################################
-    #       MENUS                  #
-    ################################
+        elif index == 1:  # Affiliations
+            menu_content = []
+            for letter in constants.LETTER_EMOJIS:
+                menu_content.append(f"{letter}")
 
-    async def display_menu_categories(self, ctx: Message):
-        menu_description = "Select the category you want to display\n"
-        nbr_category = 0
-        categories = self.retrieve_characters_category()
-        for character in categories:
-            menu_description += f"\n{constants.LETTER_EMOJIS[nbr_category]} **{character.category}**"
-            nbr_category += 1
-        menu_description += f"\n{constants.ASTERISK_EMOJI} **Display all collections**"
-        category_embed = Embed(description=menu_description)
-        category_embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar_url)
-        category_embed.set_footer(text=f"Puppet_id: {constants.PUPPET_IDS['MUSEUM_COGS_CATEGORIES']}")
-        msg = await ctx.reply(embed=category_embed, delete_after=300, mention_author=False)
-        index_category = 0
-        while index_category < nbr_category:
-            await msg.add_reaction(constants.LETTER_EMOJIS[index_category])
-            index_category += 1
-        await msg.add_reaction(constants.ASTERISK_EMOJI)
+            reaction = menu_update.retrieve_reaction(emoji.name)
+            reaction.callback = self.menu_affiliations_to_path
 
-    async def display_menu_types(self, ctx: Message, category_selected: str):
-        type_description = "Select the types you want to display\n"
-        type_description += f"\n{constants.LETTER_EMOJIS[0]} **Rarities**"
-        type_description += f"\n{constants.LETTER_EMOJIS[1]} **Affiliations**"
-        type_description += f"\n{constants.ASTERISK_EMOJI} **Display all types**"
-        type_embed = Embed(description=type_description)
-        type_embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar_url)
-        type_embed.set_footer(text=f"Category: {category_selected} | "
-                                   f"Puppet_id: {constants.PUPPET_IDS['MUSEUM_COGS_TYPES']}")
-        if type(ctx.channel) == DMChannel:
-            msg = await ctx.reply(embed=type_embed, delete_after=300, mention_author=False)
-        else:
-            await ctx.clear_reactions()
-            await ctx.edit(embed=type_embed, delete_after=300, mention_author=False)
-            msg = ctx
-        await msg.add_reaction(constants.LETTER_EMOJIS[0])
-        await msg.add_reaction(constants.LETTER_EMOJIS[1])
-        await msg.add_reaction(constants.ASTERISK_EMOJI)
+            menu_update.update_datas(menu_title="Select the first letter of the affiliation you want to display",
+                                     elements_to_display=menu_content)
 
-    async def display_menu_rarities(self, ctx: Message, category_selected: str):
-        rarity_description = "Select the rarities you want to display\n"
-        label_index = 0
-        for rarity_emoji in constants.RARITIES_EMOJI:
-            #rarity_description += f"\n{rarity_emoji} **{constants.RARITIES_LABELS[label_index]}**"
-            rarity_description += f"\n{rarity_emoji} **{constants.RARITIES_LABELS[label_index]}**"
-            label_index += 1
-        rarity_description += f"\n{constants.ASTERISK_EMOJI} **Display all rarities**"
-        rarity_embed = Embed(description=rarity_description)
-        rarity_embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar_url)
-        rarity_embed.set_footer(text=f"Category: {category_selected} | "
-                                     f"Puppet_id: {constants.PUPPET_IDS['MUSEUM_COGS_RARITIES']}")
-        if type(ctx.channel) == DMChannel:
-            msg = await ctx.reply(embed=rarity_embed, delete_after=300, mention_author=False)
-        else:
-            await ctx.clear_reactions()
-            await ctx.edit(embed=rarity_embed, delete_after=300, mention_author=False)
-            msg = ctx
-        for rarity_emoji in constants.RARITIES_EMOJI:
-            await msg.add_reaction(rarity_emoji)
-        await msg.add_reaction(constants.ASTERISK_EMOJI)
+        await menu_update.update_menu()
 
-    async def display_menu_letters(self, ctx: Message, category_selected: str, puppet_id: int, letters_offset: int = 0):
-        letters_description = "Select the first letter you want to display\n"
-        letters_embed = Embed(description=letters_description)
-        letters_embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar_url)
-        letters_embed.set_footer(text=f"Category: {category_selected} | Offset: {letters_offset} | "
-                                      f"Puppet_id: {str(puppet_id)}")
-        if type(ctx.channel) == DMChannel:
-            msg = await ctx.reply(embed=letters_embed, delete_after=300, mention_author=False)
-        else:
-            await ctx.clear_reactions()
-            await ctx.edit(embed=letters_embed, delete_after=300, mention_author=False)
-            msg = ctx
-        if letters_offset > 0:
-            await msg.add_reaction(constants.LEFT_ARROW_EMOJI)
-        for _ in range(0, 10):
-            letter_index = _ + (letters_offset * 10)
-            if letter_index < 26:
-                await msg.add_reaction(constants.LETTER_EMOJIS[letter_index])
-        if letters_offset < 2:
-            await msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
+    # Menu #5
+    async def menu_affiliations_to_path(self, menu_update: PageView123, user_that_reacted: User,
+                                        emoji: Emoji = None):
+        index = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
+        letter_emoji = menu_update.retrieve_element_by_offset(index)
+        letter_index = constants.LETTER_EMOJIS.index(letter_emoji)
+        letter = chr(65 + letter_index)
 
-    async def display_menu_affiliations(self, ctx: Message, category_selected: str, letter: str, offset: int = 0):
-        affiliations = self.retrieve_affiliations(category_selected, letter)
-        affiliation_description = "Select the affiliation collection you want to display\n"
+        affiliations_sql = (Affiliation.select(Affiliation)
+                                       .where(Affiliation.name.startswith(letter))
+                                       .order_by(Affiliation.name.asc()))
 
-        for _ in range(0, 10):
-            affiliation_index = _ + (offset * 10)
-            if affiliation_index < len(affiliations):
-                affiliation_description += f"\n{constants.LETTER_EMOJIS[_]} **{affiliations[affiliation_index].name}**"
-            else:
-                break
+        reaction = menu_update.retrieve_reaction(emoji.name)
+        reaction.callback = self.affiliation_selected
 
-        affiliations_embed = Embed(description=affiliation_description)
-        affiliations_embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar_url)
-        affiliations_embed.set_footer(text=f"Category: {category_selected} | "
-                                           f"Letter: {letter} | Offset: {offset} |"
-                                           f"Puppet_id: {constants.PUPPET_IDS['MUSEUM_COGS_AFFILIATIONS']}")
-        if type(ctx.channel) == DMChannel:
-            msg = await ctx.reply(embed=affiliations_embed, delete_after=300, mention_author=False)
-        else:
-            await ctx.clear_reactions()
-            await ctx.edit(embed=affiliations_embed, delete_after=300, mention_author=False)
-            msg = ctx
-        if offset > 0:
-            await msg.add_reaction(constants.LEFT_ARROW_EMOJI)
-        for _ in range(0, 10):
-            affiliation_index = _ + (offset * 10)
-            if affiliation_index < len(affiliations):
-                await msg.add_reaction(constants.LETTER_EMOJIS[_])
-            else:
-                break
-        if offset < math.ceil(len(affiliations) / 10) - 1:
-            await msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
-        pass
+        menu_update.update_datas(menu_title="Select the affiliation you want to display",
+                                 elements_to_display=affiliations_sql)
+        await menu_update.update_menu()
 
-    async def display_characters(self, ctx: Message, category_selected, user_id: int, rarity: int = -1,
-                                 affiliation: str = "", offset: int = 0, first_iteration: bool = True):
+    async def affiliation_selected(self, menu_update: PageView123, user_that_reacted: User,
+                                   emoji: Emoji = None):
+        index = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
+        hidden_data = menu_update.retrieve_hidden_data()
+        hidden_data.set_affiliation(menu_update.retrieve_element_by_offset(index).name)
+        menu_update.set_hidden_data(hidden_data)
+        await self.display_characters(menu_update, emoji)
+
+    async def rarity_selected(self, menu_update: PageView123, user_that_reacted: User,
+                              emoji: Emoji = None):
+        index = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
+        if index < len(constants.RARITIES_LABELS):
+            hidden_data = menu_update.retrieve_hidden_data()
+            hidden_data.set_rarity(index)
+            menu_update.set_hidden_data(hidden_data)
+            await self.display_characters(menu_update, emoji)
+
+    async def display_characters(self, menu_update: PageView123, emoji: Emoji = None):
         # Characters retrieving
-        query = Character.select(Character)
-        if category_selected != "All":
-            query = query.where(Character.category == category_selected)
-        if rarity >= 0:
-            query = query.where(Character.rarity == rarity)
-        if affiliation:
-            query = (query.join(CharacterAffiliation)
-                          .join(Affiliation)
-                          .where(Affiliation.name == affiliation))
+        query = Character.select(Character, fn.Count(Character.id).alias('count'), CharactersOwnership.discord_user_id)
+        museum_filter = menu_update.retrieve_hidden_data()
+        if museum_filter.category is not None:
+            query = query.where(Character.category == museum_filter.category)
+        if museum_filter.rarity is not None:
+            query = query.where(Character.rarity == museum_filter.rarity)
+        if museum_filter.affiliation is not None:
+            query = (query.join_from(Character, CharacterAffiliation)
+                     .join_from(CharacterAffiliation, Affiliation)
+                     .where(Affiliation.name == museum_filter.affiliation))
         total_characters = query.count()
 
         # Then we filter on only the owned card
-        query = (query.join(CharactersOwnership, on=(CharactersOwnership.character_id == Character.id))
-                      .where(CharactersOwnership.discord_user_id == user_id)
+        query = (query.join_from(Character, CharactersOwnership, on=(CharactersOwnership.character_id == Character.id))
+                      .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                             (CharactersOwnership.is_sold == False))
+                      .group_by(Character.id)
                       .order_by(Character.name))
 
         total_owned = query.count()
 
-        if offset * 10 > total_owned or offset < 0:
-            return
+        museum_characters = []
+        for character in query:
+            affiliations = character.retrieve_affiliations()
+            affiliation_text = ", ".join(affiliations)
+            character_field = f"{constants.RARITIES_EMOJI[character.rarity]} " \
+                              f"**[{constants.RARITIES_LABELS[character.rarity]}] {character.name}**"
+            if character.count > 1:
+                character_field += f" (x{character.count})"
+            character_field += f"\n{affiliation_text}\n"
+            museum_characters.append(character_field)
 
-        characters_embed = Embed(title="Character collection")
-        index = 1
-        for character in query.paginate(offset + 1, 10):
-            characters_embed.add_field(name=f"`{index}.` {constants.RARITIES_EMOJI[character.rarity]} "
-                                            f"[{constants.RARITIES_LABELS[character.rarity]}] {character.name}",
-                                       value="Temp", inline=False)
-            index += 1
+        reaction = menu_update.retrieve_reaction(emoji.name)
+        reaction.callback = self.display_character
 
-        end_page = math.ceil(total_owned / 10)
-        page_index = offset + 1
-        page_message = f"Page #{page_index}/{end_page} | You currently own {total_owned}/{total_characters} " \
-                       f"characters."
-        footer = f'Category: {category_selected}'
-        if rarity != -1:
-            footer += f' | Rarity: {rarity}'
-        if affiliation:
-            footer += f' | Affiliation: {affiliation}'
-        footer += f' | Offset: {offset} | Puppet_id: {constants.PUPPET_IDS["MUSEUM_COGS_CHARACTERS"]}'
-        characters_embed.set_footer(text=footer)
-        if type(ctx.channel) == DMChannel:
-            msg = await ctx.reply(content=page_message, embed=characters_embed, delete_after=300, mention_author=False)
-        else:
-            await ctx.edit(content=page_message, embed=characters_embed, delete_after=300, mention_author=False)
-            msg = ctx
+        menu_update.update_datas(msg_content=f"{museum_filter.owner.name}#{museum_filter.owner.discriminator} "
+                                             f"currently own {total_owned}/{total_characters} characters.",
+                                 menu_title="",
+                                 elements_to_display=museum_characters)
+        menu_update.set_hidden_data(hidden_data=query)
+        await menu_update.update_menu()
 
-        if first_iteration:
-            if type(ctx.channel) is not DMChannel:
-                await ctx.clear_reactions()
-            await msg.add_reaction(constants.LEFT_ARROW_EMOJI)
-            numbers = constants.NUMBER_EMOJIS[1:]
-            for number in numbers:
-                await msg.add_reaction(number)
-            await msg.add_reaction(constants.RIGHT_ARROW_EMOJI)
+    async def display_character(self, menu_update: PageView123, user_that_reacted: User,
+                                emoji: Emoji = None):
+        offset = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
+        index = menu_update.retrieve_index(offset)
+
+        character_list = menu_update.retrieve_hidden_data()
+        character_concerned = character_list[index]
+        ownership_models = (CharactersOwnership.select()
+                                               .where((CharactersOwnership.character_id == character_concerned.id) &
+                                                      (CharactersOwnership.discord_user_id ==
+                                                      character_concerned.charactersownership.discord_user_id)))
+
+        reaction_characters = [Reaction(event_type=constants.REACTION_ADD,
+                                        emojis=constants.SELL_EMOJI,
+                                        callback=cardCogs.sell_card),
+                               Reaction(event_type=constants.REACTION_ADD,
+                                        emojis=constants.REPORT_EMOJI,
+                                        callback=cardCogs.report_card)]
+
+        characters_view = PageModelView(puppet_bot=self.bot,
+                                        elements_to_display=list(ownership_models),
+                                        bound_to=menu_update.bound_to,
+                                        reactions=reaction_characters,
+                                        delete_after=60)
+        await characters_view.display_menu(menu_update.menu_msg.channel)
 
 
+class MuseumDataFilter:
+
+    def __init__(self, owner: User, category: Any = None, rarity: Any = None, affiliation: Any = None):
+        self.owner = owner
+        self.rarity = rarity
+        self.affiliation = affiliation
+        self.category = category
+
+    def __str__(self):
+        return f"MuseumFilter:\n\t- {self.owner}\n\t- {self.category}\n\t- {self.rarity}\n\t- {self.affiliation}"
+
+    def set_rarity(self, rarity: Any):
+        self.rarity = rarity
+
+    def set_affiliation(self, affiliation: Any):
+        self.affiliation = affiliation
+
+    def set_owner(self, owner: User):
+        self.owner = owner
+
+    def set_category(self, category: Any):
+        self.category = category
