@@ -213,6 +213,7 @@ class PageView(ViewWithReactions):
 
     async def next_page(self, triggered_menu: ViewWithReactions,
                         user_that_reacted: User, emoji_used: Emoji):
+        self.puppet_bot.logger.info(f"Page has changed for msg: {self.menu_msg.id}")
         self.offset += 1
         if self.offset * self.elements_per_page >= len(self.elements):
             self.offset -= 1
