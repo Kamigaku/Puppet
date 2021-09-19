@@ -39,7 +39,13 @@ class CardCogs(assignableCogs.AssignableCogs):
                 all_rarities = [list(it) for k, it in groupby(all_rarities, lambda e: e)]
                 characters_and_ownerships = []
                 for rarity in all_rarities:
-                    rarity_character = Character.select().where(Character.rarity == rarity[0])
+                    rarity_character = (Character.select(Character.name, Character.category, Character.rarity,
+                                                         Character.id,
+                                                         fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
+                                                 .join_from(Character, CharacterAffiliation)
+                                                 .join_from(CharacterAffiliation, Affiliation)
+                                                 .where(Character.rarity == rarity[0])
+                                                 .group_by(Character.id))
                     for _ in range(0, len(rarity)):
                         character_generated = rarity_character[random.randrange(0, len(rarity_character) - 1)]
                         character_and_ownership = {
@@ -68,10 +74,7 @@ class CardCogs(assignableCogs.AssignableCogs):
                 for character in characters_generated:
                     character_description = f"{constants.RARITIES_EMOJI[character.rarity]} " \
                                             f"[**{constants.RARITIES_LABELS[character.rarity]}**] {character.name}\n"
-                    affiliations = (Affiliation.select(Affiliation.name)
-                                    .join(CharacterAffiliation)
-                                    .where(CharacterAffiliation.character_id == character.id))
-                    character_description += ','.join([a.name for a in affiliations])
+                    character_description += character.affiliations
                     page_content.append(character_description)
                 # Cette section pourrait être transferer dans __str__ de CharactersOwnership
 

@@ -88,8 +88,6 @@ class PuppetBot(commands.Bot):
 
         string_emoji = str(payload.emoji)
 
-        self.logger.info(f"Reaction received on message {payload.message_id}")
-
         if payload.message_id not in self.reaction_listeners:
             return
         else:

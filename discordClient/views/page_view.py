@@ -165,7 +165,7 @@ class PageView(ViewWithReactions):
                  reactions: List[Reaction] = [], delete_after: int = None,
                  callback_prev=None, callback_next=None, elements_per_page: int = 1,
                  fields: List[Fields] = None, thumbnail: str = None):
-
+        reactions = reactions.copy()
         reactions.insert(0, Reaction(event_type=[constants.REACTION_ADD, constants.REACTION_REMOVE],
                                      emojis=constants.RIGHT_ARROW_EMOJI,
                                      callback=self.next_page))
@@ -213,7 +213,6 @@ class PageView(ViewWithReactions):
 
     async def next_page(self, triggered_menu: ViewWithReactions,
                         user_that_reacted: User, emoji_used: Emoji):
-        self.puppet_bot.logger.info(f"Page has changed for msg: {self.menu_msg.id}")
         self.offset += 1
         if self.offset * self.elements_per_page >= len(self.elements):
             self.offset -= 1
@@ -248,6 +247,7 @@ class PageView123(PageView):
                  callback_prev=None, callback_next=None, elements_per_page: int = 1,
                  fields: List[Fields] = None, thumbnail: str = None,
                  callback_number=None):
+        reactions = reactions.copy()
         reactions.append(Reaction(event_type=[constants.REACTION_ADD, constants.REACTION_REMOVE],
                                   emojis=constants.NUMBER_EMOJIS[1:],
                                   callback=self.number_selected))
