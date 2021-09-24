@@ -7,12 +7,13 @@ from discord import User, Member
 from peewee import fn, JOIN
 
 from discordClient.helper import constants
-from discordClient.cogs.abstract import assignableCogs
+from discordClient.cogs.abstract import AssignableCogs
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, Embed
-from discordClient.views import PageView, PageModelView, Reaction, Emoji, Fields
+from discordClient.views import PageView, Reaction, Emoji, Fields, CharacterEmbedRender, \
+    CharacterListEmbedRender, OwnersCharacterListEmbedRender
 
 
-class CardCogs(assignableCogs.AssignableCogs):
+class CardCogs(AssignableCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "card")
@@ -67,35 +68,34 @@ class CardCogs(assignableCogs.AssignableCogs):
                 CharactersOwnership.bulk_create(ownerships_models)
 
                 # Db retrieving
-                ownerships_models = CharactersOwnership.select().where(CharactersOwnership.message_id == ctx.message.id)
+                characters_owned_models = (Character.select()
+                                                    .join_from(Character, CharactersOwnership)
+                                                    .where(CharactersOwnership.message_id == ctx.message.id))
 
-                # Cette section pourrait être transferer dans __str__ de CharactersOwnership
-                page_content = []
-                for character in characters_generated:
-                    character_description = f"{constants.RARITIES_EMOJI[character.rarity]} " \
-                                            f"[**{constants.RARITIES_LABELS[character.rarity]}**] {character.name}\n"
-                    character_description += character.affiliations
-                    page_content.append(character_description)
-                # Cette section pourrait être transferer dans __str__ de CharactersOwnership
-
+                # Recap listing
+                page_renderer = CharacterListEmbedRender(msg_content=f"{ctx.author.mention}, you have dropped "
+                                                                     f"{5 * amount} characters.",
+                                                         menu_title="Summary of dropped characters")
                 page_view = PageView(puppet_bot=self.bot,
-                                     msg_content=f"{ctx.author.mention}, you have dropped {5 * amount} characters.",
-                                     menu_title="Summary of dropped characters",
-                                     elements_to_display=page_content,
-                                     elements_per_page=10)
+                                     elements_to_display=characters_generated,
+                                     elements_per_page=10,
+                                     render=page_renderer)
                 await page_view.display_menu(ctx)
 
+                # First character displaying
                 reaction_characters = [Reaction(event_type=constants.REACTION_ADD,
                                                 emojis=constants.SELL_EMOJI,
                                                 callback=sell_card),
                                        Reaction(event_type=constants.REACTION_ADD,
                                                 emojis=constants.REPORT_EMOJI,
                                                 callback=report_card)]
-
-                characters_view = PageModelView(puppet_bot=self.bot,
-                                                elements_to_display=list(ownerships_models),
-                                                bound_to=ctx.author,
-                                                reactions=reaction_characters)
+                character_renderer = CharacterEmbedRender()
+                characters_view = PageView(puppet_bot=self.bot,
+                                           elements_to_display=characters_owned_models,
+                                           bound_to=ctx.author,
+                                           reactions=reaction_characters,
+                                           elements_per_page=1,
+                                           render=character_renderer)
                 await characters_view.display_menu(ctx)
             else:
                 await ctx.author.send(f"You don't have enough {constants.COIN_NAME} to buy a booster.")
@@ -138,14 +138,15 @@ class CardCogs(assignableCogs.AssignableCogs):
                                          data=CardOwnerFieldData())
                 for mutual_owner in mutual_owners:
                     character_field.data.update_owner(self.bot.get_user(mutual_owner))
-                characters_field.append([character_field])
+                characters_field.append(character_field)
 
-            search_menu = PageModelView(puppet_bot=self.bot,
-                                        elements_to_display=list(query),
-                                        msg_content=f"Found {query.count()} result(s).",
-                                        bound_to=ctx.author,
-                                        fields=characters_field,
-                                        delete_after=600)
+            search_menu_renderer = OwnersCharacterListEmbedRender(msg_content=f"Found {query.count()} result(s).",
+                                                                  owners=characters_field)
+            search_menu = PageView(puppet_bot=self.bot,
+                                   elements_to_display=query,
+                                   render=search_menu_renderer,
+                                   bound_to=ctx.author,
+                                   delete_after=600)
             await search_menu.display_menu(ctx)
 
 

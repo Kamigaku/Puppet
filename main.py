@@ -2,12 +2,12 @@ import sys
 import getopt
 import importlib
 
-from discordClient import puppet
+from discordClient import Puppet
 
 
 def run_bot(api_key: str):
-    bot = puppet.Puppet(api_key)
-    bot.connectToServer()
+    bot = Puppet(api_key)
+    bot.connect_to_server()
 
 
 def make_migration(migration_file: str):

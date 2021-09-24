@@ -1,10 +1,12 @@
-import sqlite3
 import os
+import sqlite3
+
 from peewee import *
-import discordClient.meta.singletonMeta as singletonMeta
+
+from discordClient.meta.singletonMeta import SingletonMeta
 
 
-class DbContext(metaclass=singletonMeta.SingletonMeta):
+class DbContext(metaclass=SingletonMeta):
 
     def __init__(self):
         try:

@@ -1,6 +1,5 @@
 from peewee import *
 
-from discordClient.helper import constants
 from discordClient.model.meta_model import BaseModel
 
 
@@ -25,6 +24,3 @@ class Economy(BaseModel):
             economy_model.add_amount(amount)
             return True
         return False
-
-    def __str__(self):
-        return f"You currently have {self.amount} {constants.COIN_NAME}."

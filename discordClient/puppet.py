@@ -1,4 +1,4 @@
-from discordClient.bot.puppetBot import PuppetBot
+from discordClient.bot import PuppetBot
 from discordClient.helper import constants
 
 
@@ -9,6 +9,5 @@ class Puppet:
         self.bot = PuppetBot(commands_prefix=f"{constants.BOT_PREFIX} ")
         self.bot.default_initialisation()
 
-    def connectToServer(self):
+    def connect_to_server(self):
         self.bot.run(self.token)
-

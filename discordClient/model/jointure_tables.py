@@ -5,32 +5,16 @@ from discordClient.model.meta_model import BaseModel
 
 
 class CharacterAffiliation(BaseModel):
-    character_id = ForeignKeyField(Character, backref='rowid')
-    affiliation_id = ForeignKeyField(Affiliation, backref='rowid')
+    character_id = ForeignKeyField(Character, backref='affiliated_to')
+    affiliation_id = ForeignKeyField(Affiliation, backref='affiliated_by')
 
 
 class CharactersOwnership(BaseModel):
-
     discord_user_id = IntegerField()
-    character_id = ForeignKeyField(Character, backref='rowid')
+    character_id = ForeignKeyField(Character, backref='owned_by')
     message_id = IntegerField()
     is_sold = BooleanField(default=False)
     dropped_by = IntegerField(default=discord_user_id)
-
-    def __str__(self):
-        character_owned = Character.get_by_id()
-        return str(character_owned)
-
-    def __repr__(self):
-        return self.generate_embed()
-
-    def generate_embed(self):
-        character_owned = Character.get_by_id(self.character_id)
-        character_embed = character_owned.generate_embed()
-        footer_proxy = character_embed.footer
-        character_embed.set_footer(text=f"{footer_proxy.text} | Ownership_id: {self.get_id()}",
-                                   icon_url=footer_proxy.icon_url)
-        return character_embed
 
     def sell(self) -> int:
         if not self.is_sold:

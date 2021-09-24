@@ -3,13 +3,12 @@ from discord import Embed, Message
 from discord.ext import commands
 from discord.ext.commands import Context
 from peewee import DoesNotExist
-from discordClient.cogs.abstract import baseCogs
+from discordClient.cogs.abstract import BaseCogs
 from discordClient.helper import constants
-from discordClient.helper.listener import ReactionListener
 from discordClient.model import Character, Report, Moderator
 
 
-class ReportCogs(baseCogs.BaseCogs):
+class ReportCogs(BaseCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "report")

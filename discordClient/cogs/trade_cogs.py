@@ -3,13 +3,14 @@ from discord.ext import commands
 from discord.ext.commands import Context
 from peewee import ModelSelect, fn
 
-from discordClient.cogs.abstract import assignableCogs
+from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Affiliation, CharacterAffiliation, CharactersOwnership, Character, Trade
-from discordClient.views import ViewWithReactions, PageView123, Fields, Reaction
+from discordClient.views import ViewWithReactions, PageView123, Fields, Reaction, TradeRecapEmbedRender, \
+    TradeNumbersListEmbedRender
 
 
-class TradeCogs(assignableCogs.AssignableCogs):
+class TradeCogs(AssignableCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "trade")
@@ -20,8 +21,8 @@ class TradeCogs(assignableCogs.AssignableCogs):
 
     @commands.command(name="trade")
     async def trade(self, ctx: Context, discord_user: User):
-        # if discord_user.id == ctx.author.id:
-        #     await ctx.author.send("You cannot trade with yourself.")
+        if discord_user.id == ctx.author.id:
+            await ctx.author.send("You cannot trade with yourself.")
 
         fields = [Fields(title=f"{ctx.author.name}#{ctx.author.discriminator}",
                          data=TradeFieldData()),
@@ -35,15 +36,13 @@ class TradeCogs(assignableCogs.AssignableCogs):
                                         emojis=constants.RED_CROSS_EMOJI,
                                         callback=self.cancel_trade)]
 
+        recap_render = TradeRecapEmbedRender(applicant=ctx.author,
+                                             recipient=discord_user)
         recap_menu = ViewWithReactions(puppet_bot=self.bot,
-                                       menu_title="Trade recap",
-                                       elements_to_display=[f"The section list the traded cards between "
-                                                            f"**{ctx.author.mention}** and **{discord_user.mention}**"],
-                                       author=ctx.author,
+                                       elements_to_display=fields,
+                                       render=recap_render,
                                        bound_to=ctx.author,
-                                       fields=fields,
                                        reactions=reaction_recap_menu,
-                                       thumbnail=discord_user.avatar_url,
                                        delete_after=600)
         await recap_menu.display_menu(ctx)
 
@@ -53,10 +52,12 @@ class TradeCogs(assignableCogs.AssignableCogs):
                                        emojis=constants.ROTATE_EMOJI,
                                        callback=self.change_owner)]
 
+        trade_list_render = TradeNumbersListEmbedRender(menu_title="Summary of owned characters",
+                                                        current_owner=ctx.author)
+
         list_menu = PageView123(puppet_bot=self.bot,
-                                menu_title="Summary of owned characters",
-                                author=ctx.author,
                                 elements_to_display=elements_to_display,
+                                render=trade_list_render,
                                 elements_per_page=10,
                                 bound_to=ctx.author,
                                 reactions=reaction_list_menu,
@@ -83,8 +84,8 @@ class TradeCogs(assignableCogs.AssignableCogs):
         if index < len(hidden_data.request):
             ownership = hidden_data.request[index]
             recap_menu_msg = hidden_data.bounded_view
-            fields = recap_menu_msg.retrieve_fields()
-            owner_list_name = f"{trade_menu.author.name}#{trade_menu.author.discriminator}"
+            fields = recap_menu_msg.elements
+            owner_list_name = f"{trade_menu.render.current_owner.name}#{trade_menu.render.current_owner.discriminator}"
             for field in fields:
                 if field.title == owner_list_name:
                     field.data.update_data(ownership)
@@ -99,10 +100,13 @@ class TradeCogs(assignableCogs.AssignableCogs):
             trade_data.current_user = trade_data.origin
 
         query, elements_to_display = self.generate_request(trade_data.current_user.id)
-
         trade_data.request = query
-        list_menu.update_datas(author=trade_data.current_user,
-                               elements_to_display=elements_to_display)
+
+        trade_list_render = TradeNumbersListEmbedRender(menu_title="Summary of owned characters",
+                                                        current_owner=trade_data.current_user)
+
+        list_menu.update_datas(elements_to_display=elements_to_display,
+                               render=trade_list_render)
         await list_menu.update_menu()
 
     async def create_trade(self, list_menu: ViewWithReactions, user_that_reacted: User,
@@ -114,12 +118,12 @@ class TradeCogs(assignableCogs.AssignableCogs):
         origin_id = origin.id
         destination = list_menu.retrieve_hidden_data().retrieve_hidden_data().destination
         destination_id = destination.id
-        if type(list_menu.retrieve_field(0).data.data) is list:
-            origin_cards = "-".join([str(o.id) for o in list_menu.retrieve_field(0).data.data])
+        if type(list_menu.elements[0].data.data) is list:
+            origin_cards = "-".join([str(o.id) for o in list_menu.elements[0].data.data])
         else:
             origin_cards = ""
-        if type(list_menu.retrieve_field(1).data.data) is list:
-            destination_cards = "-".join([str(o.id) for o in list_menu.retrieve_field(1).data.data])
+        if type(list_menu.elements[1].data.data) is list:
+            destination_cards = "-".join([str(o.id) for o in list_menu.elements[1].data.data])
         else:
             destination_cards = ""
         trade = Trade(applicant=origin_id,
@@ -134,17 +138,21 @@ class TradeCogs(assignableCogs.AssignableCogs):
                                Reaction(event_type=[constants.REACTION_ADD],
                                         emojis=constants.RED_CROSS_EMOJI,
                                         callback=self.refuse_trade)]
+
+        private_list_render = TradeRecapEmbedRender(msg_content=f"You have received a trade offer from "
+                                                                f"{origin.name}#{origin.discriminator}.",
+                                                    menu_title="Trade offer",
+                                                    applicant=origin,
+                                                    recipient=destination)
         private_list_menu = ViewWithReactions(puppet_bot=self.bot,
-                                              menu_title="Trade offer",
                                               elements_to_display=list_menu.elements,
-                                              author=list_menu.author,
-                                              fields=list_menu.fields,
+                                              render=private_list_render,
                                               reactions=reaction_recap_menu,
-                                              thumbnail=list_menu.thumbnail,
-                                              msg_content=f"You have received a trade offer from "
-                                                          f"{origin.name}#{origin.discriminator}")
+                                              delete_after=600)
+
         private_list_menu.set_hidden_data(trade)
         await private_list_menu.display_menu(destination)
+        await origin.send(f"Your trade offer has been sent to {destination.name}#{destination.discriminator}.")
 
     async def cancel_trade(self, list_menu: PageView123, user_that_reacted: User,
                            emoji: Emoji = None):
@@ -153,13 +161,13 @@ class TradeCogs(assignableCogs.AssignableCogs):
 
     async def accept_trade(self, list_menu: ViewWithReactions, user_that_reacted: User,
                            emoji: Emoji = None):
-        await list_menu.menu_msg.delete()
         trade = list_menu.retrieve_hidden_data()
         if trade.accept_trade():
-            await user_that_reacted.send("The trade is complete.")
             applicant = await self.retrieve_member(trade.applicant)
-            await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} has"
-                                 f" been accepted!")
+            await user_that_reacted.send(f"You have accepted the trade offer from "
+                                         f"{applicant.name}#{applicant.discriminator}")
+            await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} "
+                                 f"has been accepted!")
         else:
             await user_that_reacted.send("The trade offer has already been completed, you cannot change the outcome.")
 
@@ -185,7 +193,8 @@ class TradeCogs(assignableCogs.AssignableCogs):
                                     .join_from(CharactersOwnership, Character)
                                     .join_from(Character, CharacterAffiliation)
                                     .join_from(CharacterAffiliation, Affiliation)
-                                    .where(CharactersOwnership.discord_user_id == user_id)
+                                    .where((CharactersOwnership.discord_user_id == user_id) &
+                                           (CharactersOwnership.is_sold == False))
                                     .group_by(CharactersOwnership.id)
                                     .order_by(Character.rarity.desc(), Character.name.asc()))
 

@@ -1,7 +1,5 @@
-import re
 import asyncio
 
-from discord import Embed, Message
 from discord.ext import commands
 from discord.ext.commands import Bot
 
@@ -36,12 +34,3 @@ class BaseCogs(commands.Cog):
         if discord_user is None:
             discord_user = await self.bot.fetch_user(discord_user_id)
         return discord_user
-
-    def retrieve_from_embed(self, embeds: Embed, pattern: str):
-        if embeds is not None and len(embeds) > 0:
-            for embed in embeds:
-                if embed.footer is not None:
-                    regex_result = re.search(pattern=pattern, string=embed.footer.text)
-                    if regex_result:
-                        return regex_result.group(1)
-        return ""

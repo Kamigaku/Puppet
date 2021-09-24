@@ -7,10 +7,11 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from discordClient.cogs import cardCogs
-from discordClient.cogs.abstract import assignableCogs
+from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Character, Affiliation, fn, CharacterAffiliation, CharactersOwnership
-from discordClient.views import Reaction, PageView123, PageModelView
+from discordClient.views import Reaction, PageView123, NumbersListEmbedRender, AllAndNumbersListEmbedRender, \
+    PageView, MuseumCharacterListEmbedRender, MuseumCharacterOwnershipListEmbedRender
 
 
 # The organisation is like that
@@ -40,7 +41,7 @@ from discordClient.views import Reaction, PageView123, PageModelView
 #
 
 
-class MuseumCogs(assignableCogs.AssignableCogs):
+class MuseumCogs(AssignableCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "museum")
@@ -51,7 +52,6 @@ class MuseumCogs(assignableCogs.AssignableCogs):
 
     @commands.command("museum")
     async def museum(self, ctx: Context, owner: User = None):
-        menu_title = "Select the category you want to display"
         character_categories = Character.select(Character.category).group_by(Character.category)
         categories = []
         for character_category in character_categories:
@@ -66,13 +66,14 @@ class MuseumCogs(assignableCogs.AssignableCogs):
                                     emojis=constants.ASTERISK_EMOJI,
                                     callback=self.display_characters)]
 
+        category_renderer = AllAndNumbersListEmbedRender(menu_title="Select the category you want to display")
+
         category_menu = PageView123(puppet_bot=self.bot,
-                                    menu_title=menu_title,
                                     elements_to_display=categories,
+                                    render=category_renderer,
                                     elements_per_page=10,
-                                    author=museum_filter.owner,
                                     reactions=reaction_museum,
-                                    callback_number=self.menu_choices_to_path,
+                                    callback_number=self.menu_categories_to_choice,
                                     delete_after=600)
         category_menu.set_hidden_data(museum_filter)
         await category_menu.display_menu(ctx)
@@ -108,8 +109,10 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             reaction = menu_update.retrieve_reaction(emoji.name)
             reaction.callback = self.menu_choices_to_path
 
-            menu_update.update_datas(menu_title="Select the filter you want to apply",
-                                     elements_to_display=["Rarities", "Affiliations"])
+            filter_renderer = AllAndNumbersListEmbedRender(menu_title="Select the filter you want to apply")
+
+            menu_update.update_datas(elements_to_display=["Rarities", "Affiliations"],
+                                     render=filter_renderer)
             hidden_data = menu_update.retrieve_hidden_data()
             hidden_data.set_category(category=category)
             menu_update.set_hidden_data(hidden_data)
@@ -132,8 +135,10 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             reaction = menu_update.retrieve_reaction(emoji.name)
             reaction.callback = self.rarity_selected
 
-            menu_update.update_datas(menu_title="Select the rarity you want to display",
-                                     elements_to_display=menu_content)
+            rarities_renderer = NumbersListEmbedRender(menu_title="Select the rarity you want to display")
+
+            menu_update.update_datas(elements_to_display=menu_content,
+                                     render=rarities_renderer)
 
         elif index == 1:  # Affiliations
             menu_content = []
@@ -143,8 +148,11 @@ class MuseumCogs(assignableCogs.AssignableCogs):
             reaction = menu_update.retrieve_reaction(emoji.name)
             reaction.callback = self.menu_affiliations_to_path
 
-            menu_update.update_datas(menu_title="Select the first letter of the affiliation you want to display",
-                                     elements_to_display=menu_content)
+            rarities_renderer = NumbersListEmbedRender(menu_title="Select the first letter of the affiliation you "
+                                                                  "want to display")
+
+            menu_update.update_datas(elements_to_display=menu_content,
+                                     render=rarities_renderer)
 
         await menu_update.update_menu()
 
@@ -163,8 +171,10 @@ class MuseumCogs(assignableCogs.AssignableCogs):
         reaction = menu_update.retrieve_reaction(emoji.name)
         reaction.callback = self.affiliation_selected
 
-        menu_update.update_datas(menu_title="Select the affiliation you want to display",
-                                 elements_to_display=affiliations_sql)
+        affiliations_renderer = NumbersListEmbedRender(menu_title="Select the affiliation you want to display")
+
+        menu_update.update_datas(elements_to_display=affiliations_sql,
+                                 render=affiliations_renderer)
         await menu_update.update_menu()
 
     async def affiliation_selected(self, menu_update: PageView123, user_that_reacted: User,
@@ -207,24 +217,17 @@ class MuseumCogs(assignableCogs.AssignableCogs):
 
         total_owned = query.count()
 
-        museum_characters = []
-        for character in query:
-            affiliations = character.retrieve_affiliations()
-            affiliation_text = ", ".join(affiliations)
-            character_field = f"{constants.RARITIES_EMOJI[character.rarity]} " \
-                              f"**[{constants.RARITIES_LABELS[character.rarity]}] {character.name}**"
-            if character.count > 1:
-                character_field += f" (x{character.count})"
-            character_field += f"\n{affiliation_text}\n"
-            museum_characters.append(character_field)
-
         reaction = menu_update.retrieve_reaction(emoji.name)
         reaction.callback = self.display_character
 
-        menu_update.update_datas(msg_content=f"{museum_filter.owner.name}#{museum_filter.owner.discriminator} "
-                                             f"currently own {total_owned}/{total_characters} characters.",
-                                 menu_title="",
-                                 elements_to_display=museum_characters)
+        characters_renderer = MuseumCharacterListEmbedRender(msg_content=f"{museum_filter.owner.name}#"
+                                                                         f"{museum_filter.owner.discriminator} "
+                                                                         f"currently own "
+                                                                         f"{total_owned}/{total_characters} "
+                                                                         f"characters.")
+
+        menu_update.update_datas(elements_to_display=query,
+                                 render=characters_renderer)
         menu_update.set_hidden_data(hidden_data=query)
         await menu_update.update_menu()
 
@@ -247,11 +250,14 @@ class MuseumCogs(assignableCogs.AssignableCogs):
                                         emojis=constants.REPORT_EMOJI,
                                         callback=cardCogs.report_card)]
 
-        characters_view = PageModelView(puppet_bot=self.bot,
-                                        elements_to_display=list(ownership_models),
-                                        bound_to=menu_update.bound_to,
-                                        reactions=reaction_characters,
-                                        delete_after=60)
+        characters_renderer = MuseumCharacterOwnershipListEmbedRender()
+
+        characters_view = PageView(puppet_bot=self.bot,
+                                   elements_to_display=ownership_models,
+                                   render=characters_renderer,
+                                   bound_to=menu_update.bound_to,
+                                   reactions=reaction_characters,
+                                   delete_after=60)
         await characters_view.display_menu(menu_update.menu_msg.channel)
 
 

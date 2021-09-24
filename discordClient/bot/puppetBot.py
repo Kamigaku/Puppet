@@ -1,9 +1,8 @@
-import re
 import inspect
 import logging
 
 from discord.ext import commands
-from discord import Intents, RawReactionActionEvent, Embed, RawMessageDeleteEvent
+from discord import Intents, RawReactionActionEvent, RawMessageDeleteEvent
 
 from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs

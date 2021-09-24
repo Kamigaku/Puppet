@@ -1,6 +1,6 @@
 from discord import User, Message
 
-from discordClient.helper.disposable import Disposable
+from discordClient.helper import Disposable
 
 
 class ReactionListener:

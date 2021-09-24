@@ -1,10 +1,9 @@
-from discord import Embed
 from peewee import Model, TextField, ModelBase
 
-from discordClient.dal import dbContext
+from discordClient.dal import DbContext
 
 
-dbContext = dbContext.DbContext()
+dbContext = DbContext()
 
 
 class MetaBaseModel(ModelBase):
@@ -17,9 +16,6 @@ class MetaBaseModel(ModelBase):
 
 
 class BaseModel(Model, metaclass=MetaBaseModel):
-
-    def generate_embed(self) -> Embed:
-        raise NotImplementedError("This model has no embed display implementation.")
 
     class Meta:
         database = dbContext.sqliteConnection

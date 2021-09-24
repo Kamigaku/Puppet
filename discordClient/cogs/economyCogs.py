@@ -2,12 +2,13 @@ from discord.ext import tasks, commands
 from discord.ext.commands import Context
 from discord.user import User
 from discord import Status
-from discordClient.cogs.abstract import baseCogs
+
+from discordClient.cogs.abstract import BaseCogs
 from discordClient.helper import constants
 from discordClient.model import Economy
 
 
-class EconomyCogs(baseCogs.BaseCogs):
+class EconomyCogs(BaseCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "economy")
@@ -48,9 +49,9 @@ class EconomyCogs(baseCogs.BaseCogs):
                     elif member.status == Status.idle or member.status == Status.do_not_disturb:
                         amount = 1
                     if (member.voice is not None and
-                       not member.voice.afk and
-                       not member.voice.self_deaf and
-                       not member.voice.self_mute):
+                            not member.voice.afk and
+                            not member.voice.self_deaf and
+                            not member.voice.self_mute):
                         amount *= 2
                     economy_model, model_created = Economy.get_or_create(discord_user_id=member.id)
                     economy_model.add_amount(amount)
