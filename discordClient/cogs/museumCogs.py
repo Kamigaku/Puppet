@@ -11,10 +11,11 @@ from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Character, Affiliation, fn, CharacterAffiliation, CharactersOwnership
 from discordClient.views import Reaction, PageView123, NumbersListEmbedRender, AllAndNumbersListEmbedRender, \
-    PageView, MuseumCharacterListEmbedRender, MuseumCharacterOwnershipListEmbedRender
+    PageView, MuseumCharacterListEmbedRender, MuseumCharacterOwnershipListEmbedRender, \
+    MuseumAffiliationsNumbersListEmbedRender
 
 
-# The organisation is like that
+# The organisation is the following:
 #
 #    #####################    #####################      #####################
 #    # MENU - Categories #    # MENU - Choice     #      # MENU - Rarity     #
@@ -171,7 +172,8 @@ class MuseumCogs(AssignableCogs):
         reaction = menu_update.retrieve_reaction(emoji.name)
         reaction.callback = self.affiliation_selected
 
-        affiliations_renderer = NumbersListEmbedRender(menu_title="Select the affiliation you want to display")
+        affiliations_renderer = MuseumAffiliationsNumbersListEmbedRender(menu_title="Select the affiliation you want "
+                                                                                    "to display")
 
         menu_update.update_datas(elements_to_display=affiliations_sql,
                                  render=affiliations_renderer)
@@ -183,7 +185,7 @@ class MuseumCogs(AssignableCogs):
         hidden_data = menu_update.retrieve_hidden_data()
         hidden_data.set_affiliation(menu_update.retrieve_element_by_offset(index).name)
         menu_update.set_hidden_data(hidden_data)
-        await self.display_characters(menu_update, emoji)
+        await self.display_characters(menu_update, user_that_reacted, emoji)
 
     async def rarity_selected(self, menu_update: PageView123, user_that_reacted: User,
                               emoji: Emoji = None):
@@ -192,9 +194,11 @@ class MuseumCogs(AssignableCogs):
             hidden_data = menu_update.retrieve_hidden_data()
             hidden_data.set_rarity(index)
             menu_update.set_hidden_data(hidden_data)
-            await self.display_characters(menu_update, emoji)
+            await self.display_characters(menu_update, user_that_reacted, emoji)
 
-    async def display_characters(self, menu_update: PageView123, emoji: Emoji = None):
+    async def display_characters(self, menu_update: PageView123, user_that_reacted: User,
+                                 emoji: Emoji = None):
+        menu_update.remove_reaction(constants.ASTERISK_EMOJI)
         # Characters retrieving
         query = Character.select(Character, fn.Count(Character.id).alias('count'), CharactersOwnership.discord_user_id)
         museum_filter = menu_update.retrieve_hidden_data()
@@ -217,7 +221,7 @@ class MuseumCogs(AssignableCogs):
 
         total_owned = query.count()
 
-        reaction = menu_update.retrieve_reaction(emoji.name)
+        reaction = menu_update.retrieve_reaction(constants.NUMBER_EMOJIS[1])
         reaction.callback = self.display_character
 
         characters_renderer = MuseumCharacterListEmbedRender(msg_content=f"{museum_filter.owner.name}#"
@@ -233,6 +237,8 @@ class MuseumCogs(AssignableCogs):
 
     async def display_character(self, menu_update: PageView123, user_that_reacted: User,
                                 emoji: Emoji = None):
+        if emoji.name not in constants.NUMBER_EMOJIS:
+            return
         offset = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
         index = menu_update.retrieve_index(offset)
 
@@ -241,7 +247,8 @@ class MuseumCogs(AssignableCogs):
         ownership_models = (CharactersOwnership.select()
                                                .where((CharactersOwnership.character_id == character_concerned.id) &
                                                       (CharactersOwnership.discord_user_id ==
-                                                      character_concerned.charactersownership.discord_user_id)))
+                                                      character_concerned.charactersownership.discord_user_id) &
+                                                      (CharactersOwnership.is_sold == False)))
 
         reaction_characters = [Reaction(event_type=constants.REACTION_ADD,
                                         emojis=constants.SELL_EMOJI,

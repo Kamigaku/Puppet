@@ -173,12 +173,11 @@ class TradeCogs(AssignableCogs):
 
     async def refuse_trade(self, list_menu: ViewWithReactions, user_that_reacted: User,
                            emoji: Emoji = None):
-        await list_menu.menu_msg.delete()
         trade = list_menu.retrieve_hidden_data()
         if trade.refuse_trade():
             applicant = await self.retrieve_member(trade.applicant)
-            await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} has"
-                                 f" been refused.")
+            await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} "
+                                 f"has been refused.")
         else:
             await user_that_reacted.send("The trade offer has already been completed, you cannot change the outcome.")
 

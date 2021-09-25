@@ -83,6 +83,11 @@ class ViewWithReactions(Disposable):
                 return reaction
         return None
 
+    def remove_reaction(self, emoji: Emoji):
+        for reaction in self.reactions:
+            if emoji in reaction.emojis:
+                self.reactions.remove(reaction)
+
     async def reaction_callback(self, user_that_reacted: User, emoji_used: Emoji):
         string_emoji = emoji_used.name
         for reaction in self.reactions:

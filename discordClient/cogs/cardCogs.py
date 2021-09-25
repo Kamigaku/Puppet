@@ -3,14 +3,14 @@ import uuid
 from itertools import groupby
 from discord.ext import commands
 from discord.ext.commands import Context
-from discord import User, Member
+from discord import User, Member, Embed, Emoji
 from peewee import fn, JOIN
 
 from discordClient.helper import constants
 from discordClient.cogs.abstract import AssignableCogs
-from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, Embed
-from discordClient.views import PageView, Reaction, Emoji, Fields, CharacterEmbedRender, \
-    CharacterListEmbedRender, OwnersCharacterListEmbedRender
+from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation
+from discordClient.views import PageView, Reaction, Fields, CharacterEmbedRender, CharacterListEmbedRender, \
+    OwnersCharacterListEmbedRender, MuseumCharacterOwnershipListEmbedRender
 
 
 class CardCogs(AssignableCogs):
@@ -68,9 +68,11 @@ class CardCogs(AssignableCogs):
                 CharactersOwnership.bulk_create(ownerships_models)
 
                 # Db retrieving
-                characters_owned_models = (Character.select()
-                                                    .join_from(Character, CharactersOwnership)
-                                                    .where(CharactersOwnership.message_id == ctx.message.id))
+                # characters_owned_models = (Character.select()
+                #                                     .join_from(Character, CharactersOwnership)
+                #                                     .where(CharactersOwnership.message_id == ctx.message.id))
+                characters_owned_models = (CharactersOwnership.select()
+                                                              .where(CharactersOwnership.message_id == ctx.message.id))
 
                 # Recap listing
                 page_renderer = CharacterListEmbedRender(msg_content=f"{ctx.author.mention}, you have dropped "
@@ -89,7 +91,7 @@ class CardCogs(AssignableCogs):
                                        Reaction(event_type=constants.REACTION_ADD,
                                                 emojis=constants.REPORT_EMOJI,
                                                 callback=report_card)]
-                character_renderer = CharacterEmbedRender()
+                character_renderer = MuseumCharacterOwnershipListEmbedRender()
                 characters_view = PageView(puppet_bot=self.bot,
                                            elements_to_display=characters_owned_models,
                                            bound_to=ctx.author,
@@ -118,36 +120,46 @@ class CardCogs(AssignableCogs):
                         active_ids.append(member.id)
 
             query = (Character.select(Character.id, Character.name, Character.description, Character.image_link,
-                                      Character.rarity,
-                                      fn.GROUP_CONCAT(CharactersOwnership.discord_user_id, ",").alias("owners"))
-                              .join_from(Character, CharactersOwnership,
-                                         join_type=JOIN.LEFT_OUTER)
-                              .where(Character.name.contains(name))
-                              .group_by(Character.id)
-                              .order_by(Character.rarity.desc()))
+                                      Character.rarity)
+                     .where(Character.name.contains(name))
+                     .order_by(Character.rarity.desc()))
 
-            characters_field = []
-            for character in query:
-                mutual_owners = []
-                if character.owners is not None:
-                    splitted_owners = str(character.owners).split(",")
-                    for owner in splitted_owners:
-                        if int(owner) in active_ids and int(owner) not in mutual_owners:
-                            mutual_owners.append(int(owner))
-                character_field = Fields(title="Owners of the card",
-                                         data=CardOwnerFieldData())
-                for mutual_owner in mutual_owners:
-                    character_field.data.update_owner(self.bot.get_user(mutual_owner))
-                characters_field.append(character_field)
+            if len(query) > 0:
+                characters_field = []
+                for character in query:
+                    mutual_owners = []
+                    if len(character.owned_by) > 0:
+                        for owner in character.owned_by:
+                            if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_owners:
+                                mutual_owners.append(owner.discord_user_id)
 
-            search_menu_renderer = OwnersCharacterListEmbedRender(msg_content=f"Found {query.count()} result(s).",
-                                                                  owners=characters_field)
-            search_menu = PageView(puppet_bot=self.bot,
-                                   elements_to_display=query,
-                                   render=search_menu_renderer,
-                                   bound_to=ctx.author,
-                                   delete_after=600)
-            await search_menu.display_menu(ctx)
+                    character_field = Fields(title="Owners of the card",
+                                             data=CardOwnerFieldData())
+                    for mutual_owner in mutual_owners:
+                        character_field.data.update_owner(self.bot.get_user(mutual_owner))
+                    characters_field.append(character_field)
+
+                search_menu_renderer = OwnersCharacterListEmbedRender(msg_content=f"Found {query.count()} result(s).",
+                                                                      owners=characters_field)
+                search_menu = PageView(puppet_bot=self.bot,
+                                       elements_to_display=query,
+                                       render=search_menu_renderer,
+                                       bound_to=ctx.author,
+                                       delete_after=600)
+                await search_menu.display_menu(ctx)
+            else:
+                await ctx.send(f"No results has been found for the query \"{name}\".")
+
+    ################################
+    #       ERRORS HANDLING        #
+    ################################
+
+    @cards_buy.error
+    async def on_cards_buy_error(self, ctx: Context, error):
+        await ctx.send(f"{constants.RED_CROSS_EMOJI} An error has occurred during the buyout of your cards. "
+                       f"Please contact an admin.")
+        await ctx.send(f"{constants.RED_CROSS_EMOJI} Stack trace: {error}")
+        self.currently_opening_cards.remove(ctx.author.id)
 
 
 class CardOwnerFieldData:

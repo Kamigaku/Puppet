@@ -118,11 +118,11 @@ class ReportCogs(BaseCogs):
     @report.error
     async def on_report_error(self, ctx: Context, error):
         await ctx.author.send(f"{constants.WARNING_EMOJI} Your report is incoherent, you need to send a report that "
-                              f"follow the pattern: **\"{self.bot.command_prefix}report [CATEGORY] [CARD_ID] "
+                              f"follow the pattern: **\"{self.bot.command_prefix} report [CATEGORY] [CARD_ID] "
                               f"[COMMENT]\"** {constants.WARNING_EMOJI}.")
 
     @report_fix.error
     async def on_report_fix_error(self, ctx: Context, error):
         await ctx.author.send(f"{constants.WARNING_EMOJI} Your report fix is incoherent, you need to send a fix that "
-                              f"follow the pattern: **\"{self.bot.command_prefix}report_fix [REPORT_ID] "
+                              f"follow the pattern: **\"{self.bot.command_prefix} report_fix [REPORT_ID] "
                               f"[COMMENT]\"** {constants.WARNING_EMOJI}.")

@@ -29,11 +29,16 @@ class EconomyCogs(BaseCogs):
             await ctx.author.send("You cannot give a negative number.")
 
     @commands.command(name="check")
-    async def check_wallet(self, ctx: Context):
+    async def check_wallet(self, ctx: Context, owner: User = None):
         if ctx.guild is not None:
             await ctx.message.delete()
-        user_model, user_created = Economy.get_or_create(discord_user_id=ctx.author.id)
-        await ctx.author.send(str(user_model))
+        if owner is None:
+            user_model, user_created = Economy.get_or_create(discord_user_id=ctx.author.id)
+            await ctx.author.send(f"You currently have {user_model.amount} {constants.COIN_NAME}.")
+        else:
+            user_model, user_created = Economy.get_or_create(discord_user_id=owner.id)
+            await ctx.author.send(f"The user {owner.name}#{owner.discriminator} currently have "
+                                  f"{user_model.amount} {constants.COIN_NAME}.")
 
     @tasks.loop(minutes=10)
     async def distribute_salary(self):

@@ -4,7 +4,7 @@ from typing import Any, List
 from discord import Embed, User
 
 from discordClient.helper import constants
-from discordClient.model import Character, CharactersOwnership
+from discordClient.model import Character, CharactersOwnership, Affiliation
 
 
 class Fields:
@@ -122,7 +122,7 @@ class NumbersListEmbedRender(ListEmbedRender):
         super().__init__()
         self.menu_title = menu_title
 
-    def generate_render(self, data: List[str] = None, offset: int = 0, starting_index: int = 0) -> Embed:
+    def generate_render(self, data: List[Any] = None, offset: int = 0, starting_index: int = 0) -> Embed:
         embed = Embed()
         if self.menu_title is not None:
             embed.title = self.menu_title
@@ -158,15 +158,29 @@ class OwnersCharacterListEmbedRender(CharacterEmbedRender):
 
     def generate_render(self, data: List[Character], offset: int = 0, starting_index: int = 0) -> Embed:
         embed = super().generate_render(data, offset, starting_index)
-        embed.add_field(name=self.owners[offset].title,
-                        value=self.owners[offset].data,
-                        inline=self.owners[offset].inline)
+        if self.owners is not None:
+            embed.add_field(name=self.owners[offset].title,
+                            value=self.owners[offset].data,
+                            inline=self.owners[offset].inline)
         return embed
 
 
 #################################
 #          MUSEUM COGS          #
 #################################
+
+
+class MuseumAffiliationsNumbersListEmbedRender(NumbersListEmbedRender):
+
+    def generate_render(self, data: List[Affiliation] = None, offset: int = 0, starting_index: int = 0) -> Embed:
+        embed = super().generate_render(data, offset, starting_index)
+        iteration = 1
+        description = ""
+        for affiliation in data:
+            description += f"{constants.NUMBER_EMOJIS[iteration]} • {affiliation.name}\n"
+            iteration += 1
+        embed.description = description
+        return embed
 
 
 class MuseumCharacterListEmbedRender(ListEmbedRender):
