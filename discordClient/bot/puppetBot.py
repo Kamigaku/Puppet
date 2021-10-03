@@ -1,8 +1,9 @@
 import inspect
 import logging
 
-from discord.ext import commands
+from discord.ext.commands import Bot
 from discord import Intents, RawReactionActionEvent, RawMessageDeleteEvent
+from discord_slash import SlashCommand, ComponentContext
 
 from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
@@ -12,14 +13,17 @@ from discordClient.cogs.trade_cogs import TradeCogs
 from discordClient.helper.listener import ReactionListener, DeleteListener
 
 
-class PuppetBot(commands.Bot):
+class PuppetBot(Bot):
 
     def __init__(self, commands_prefix: str):
         intents = Intents.default()
         intents.members = True
         intents.presences = True
         intents.reactions = True
-        super().__init__(command_prefix=commands_prefix, intents=intents)
+        super().__init__(command_prefix=commands_prefix, intents=intents,
+                         self_bot=True)
+        self.slash = SlashCommand(self, sync_commands=True, delete_from_unused_guilds=True,
+                                  debug_guild=877098506211442719)
         self.reaction_listeners = {}
         self.delete_listeners = {}
 
@@ -114,3 +118,29 @@ class PuppetBot(commands.Bot):
             self.logger.info(f"Disposing the message id {payload.message_id}")
             self.delete_listeners[payload.message_id].dispose()
             self.delete_listeners.pop(payload.message_id)
+
+    async def on_component(self, ctx: ComponentContext):
+        if self.user.id == ctx.author.id:  # We avoid to react to the current bot reactions
+            await ctx.defer(ignore=True)
+            return
+
+        if ctx.origin_message_id not in self.reaction_listeners:
+            await ctx.defer(ignore=True)
+            return
+        else:
+            message_listener = self.reaction_listeners[ctx.origin_message_id]
+
+            for reaction_listener in message_listener:
+                if (reaction_listener.interaction_id == ctx.component_id and
+                        (reaction_listener.bound_to is None or
+                         (reaction_listener.bound_to is not None and reaction_listener.bound_to == ctx.author_id))):
+
+                    # Retrieve user
+                    user_that_reacted = self.get_user(ctx.author_id)
+                    if user_that_reacted is None:
+                        user_that_reacted = await self.fetch_user(ctx.author_id)
+                    if user_that_reacted.bot:
+                        await ctx.defer(ignore=True)
+                        return
+                    await reaction_listener.callback(ctx.component_id, user_that_reacted)
+        await ctx.defer(ignore=True)

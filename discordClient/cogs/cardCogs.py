@@ -1,16 +1,20 @@
 import random
 import uuid
 from itertools import groupby
-from discord.ext import commands
-from discord.ext.commands import Context
-from discord import User, Member, Embed, Emoji
-from peewee import fn, JOIN
 
-from discordClient.helper import constants
+from discord import User, Member, Embed, Emoji
+from discord.ext.commands import Context
+from discord_slash import cog_ext, SlashContext, ComponentContext
+from discord_slash.utils.manage_commands import create_option
+from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
+from discord_slash.model import ButtonStyle
+from peewee import fn
+
 from discordClient.cogs.abstract import AssignableCogs
+from discordClient.helper import constants
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation
-from discordClient.views import PageView, Reaction, Fields, CharacterEmbedRender, CharacterListEmbedRender, \
-    OwnersCharacterListEmbedRender, MuseumCharacterOwnershipListEmbedRender
+from discordClient.views import PageView, Reaction, Fields, CharacterListEmbedRender, OwnersCharacterListEmbedRender, \
+    MuseumCharacterOwnershipListEmbedRender
 
 
 class CardCogs(AssignableCogs):
@@ -23,8 +27,17 @@ class CardCogs(AssignableCogs):
     #       COMMAND COGS           #
     ################################
 
-    @commands.command()
-    async def cards_buy(self, ctx: Context, amount: int = 1):
+    @cog_ext.cog_slash(name="cards_buy",
+                       description="Allow you to buy one or multiple booster.",
+                       options=[
+                           create_option(
+                               name="amount",
+                               description="Specify an amount of booster you want to buy, the default value being 1.",
+                               option_type=4,
+                               required=False
+                           )
+                       ])
+    async def cards_buy(self, ctx: SlashContext, amount: int = 1):
         self.bot.logger.info(f"Beginning card distribution for user: {ctx.author.id}")
         if ctx.author.id not in self.currently_opening_cards:
             self.currently_opening_cards.append(ctx.author.id)
@@ -43,16 +56,16 @@ class CardCogs(AssignableCogs):
                     rarity_character = (Character.select(Character.name, Character.category, Character.rarity,
                                                          Character.id,
                                                          fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
-                                                 .join_from(Character, CharacterAffiliation)
-                                                 .join_from(CharacterAffiliation, Affiliation)
-                                                 .where(Character.rarity == rarity[0])
-                                                 .group_by(Character.id))
+                                        .join_from(Character, CharacterAffiliation)
+                                        .join_from(CharacterAffiliation, Affiliation)
+                                        .where(Character.rarity == rarity[0])
+                                        .group_by(Character.id))
                     for _ in range(0, len(rarity)):
                         character_generated = rarity_character[random.randrange(0, len(rarity_character) - 1)]
                         character_and_ownership = {
                             "ownership": CharactersOwnership(discord_user_id=ctx.author.id,
                                                              character_id=character_generated.get_id(),
-                                                             message_id=ctx.message.id),
+                                                             message_id=ctx.interaction_id),
                             "character": character_generated
                         }
                         characters_and_ownerships.append(character_and_ownership)
@@ -68,11 +81,8 @@ class CardCogs(AssignableCogs):
                 CharactersOwnership.bulk_create(ownerships_models)
 
                 # Db retrieving
-                # characters_owned_models = (Character.select()
-                #                                     .join_from(Character, CharactersOwnership)
-                #                                     .where(CharactersOwnership.message_id == ctx.message.id))
                 characters_owned_models = (CharactersOwnership.select()
-                                                              .where(CharactersOwnership.message_id == ctx.message.id))
+                                           .where(CharactersOwnership.message_id == ctx.interaction_id))
 
                 # Recap listing
                 page_renderer = CharacterListEmbedRender(msg_content=f"{ctx.author.mention}, you have dropped "
@@ -107,8 +117,18 @@ class CardCogs(AssignableCogs):
                                   "the moderators.")
         self.bot.logger.info(f"Card distribution over for user: {ctx.author.id}")
 
-    @commands.command()
-    async def search(self, ctx: Context, name: str):
+    @cog_ext.cog_slash(name="search",
+                       description="Research a card whose name contains a specified value.",
+                       options=[
+                           create_option(
+                               name="name",
+                               description="Specify a search value. To specify space in the name, add \" before and "
+                                           "after your research.",
+                               option_type=3,
+                               required=True
+                           )
+                       ])
+    async def search(self, ctx: SlashContext, name: str):
         if len(name) < 3:
             await ctx.send("The research need to have more than 2 characters.", delete_after=30)
         else:
@@ -150,6 +170,30 @@ class CardCogs(AssignableCogs):
             else:
                 await ctx.send(f"No results has been found for the query \"{name}\".")
 
+    @cog_ext.cog_slash(name="test",
+                       description="Test function.")
+    async def test(self, ctx: SlashContext):
+        buttons = [
+            create_button(
+                style=ButtonStyle.green,
+                label="A Green Button",
+                custom_id="hello_49"
+            )
+        ]
+        select = create_select(
+            options=[  # the options in your dropdown
+                create_select_option("Lab Coat", value="coat", emoji="🥼"),
+                create_select_option("Test Tube", value="tube", emoji="🧪"),
+                create_select_option("Petri Dish", value="dish", emoji="🧫"),
+            ],
+            placeholder="Choose your option",  # the placeholder text to show when no options have been chosen
+            min_values=1,  # the minimum number of options a user must select
+            max_values=2,  # the maximum number of options a user can select
+        )
+        action_row = create_actionrow(*buttons)
+        select_row = create_actionrow(select)
+        await ctx.send("My Message", components=[action_row, select_row])
+
     ################################
     #       ERRORS HANDLING        #
     ################################
@@ -160,6 +204,10 @@ class CardCogs(AssignableCogs):
                        f"Please contact an admin.")
         await ctx.send(f"{constants.RED_CROSS_EMOJI} Stack trace: {error}")
         self.currently_opening_cards.remove(ctx.author.id)
+
+    @cog_ext.cog_component(components="hello_49")
+    async def hello(self, ctx: ComponentContext):
+        await ctx.edit_origin(content="You pressed a button!")
 
 
 class CardOwnerFieldData:

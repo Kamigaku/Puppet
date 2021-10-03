@@ -1,8 +1,11 @@
 from discord import User
 from discord import Embed, Message
-from discord.ext import commands
-from discord.ext.commands import Context
 from peewee import DoesNotExist
+from discord_slash import cog_ext, SlashContext
+from discord_slash.model import SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_option, create_choice
+from discord_slash.utils.manage_components import create_button, create_actionrow
+
 from discordClient.cogs.abstract import BaseCogs
 from discordClient.helper import constants
 from discordClient.model import Character, Report, Moderator
@@ -77,10 +80,57 @@ class ReportCogs(BaseCogs):
     #       COMMAND COGS           #
     ################################
 
-    @commands.command("report")
-    async def report(self, ctx: Context, category: str, card_id: int, comment: str):
+    @cog_ext.cog_slash(name="report",
+                       description="Report a card ",
+                       options=[
+                           create_option(
+                               name="category",
+                               description="The category of the report",
+                               option_type=SlashCommandOptionType.STRING,
+                               required=True,
+                               choices=[
+                                 create_choice(
+                                   name="Description incoherency",
+                                   value="description"
+                                 ),
+                                 create_choice(
+                                   name="Invalid image",
+                                   value="image"
+                                 ),
+                                 create_choice(
+                                   name="Invalid affiliation(s)",
+                                   value="affiliation"
+                                 ),
+                                 create_choice(
+                                   name="Invalid name",
+                                   value="name"
+                                 ),
+                                 create_choice(
+                                   name="Card incoherency",
+                                   value="card"
+                                 ),
+                                 create_choice(
+                                   name="Other report",
+                                   value="other"
+                                 )
+                               ]
+                           ),
+                           create_option(
+                               name="card_id",
+                               description="The id of the card to report",
+                               option_type=SlashCommandOptionType.INTEGER,
+                               required=True,
+                           ),
+                           create_option(
+                               name="comment",
+                               description="Description of the report",
+                               option_type=SlashCommandOptionType.STRING,
+                               required=True,
+                           )
+                       ])
+    async def report(self, ctx: SlashContext, category: str, card_id: int, comment: str):
         Report.create(category=category, card_id=card_id, comment=comment, reporter_user_id=ctx.author.id)
-        await ctx.author.send(f"{constants.CHECK_EMOJI} Your report has been sent.")
+        await ctx.send(f"{constants.CHECK_EMOJI} Your report has been sent.")
 
     # @commands.command("report_display")
     # async def report_display(self, ctx: Context):
@@ -101,28 +151,44 @@ class ReportCogs(BaseCogs):
     #         await ctx.author.send(f"{constants.WARNING_EMOJI} You are not a moderator, you cannot access this "
     #                               f"functionality. {constants.WARNING_EMOJI}")
 
-    @commands.command("report_fix")
-    async def report_fix(self, ctx: Context, report_id: int, report_fix: str):
+    @cog_ext.cog_slash(name="report_fix",
+                       description="Report a card",
+                       options=[
+                           create_option(
+                               name="report_id",
+                               description="The id of the report to fix",
+                               option_type=SlashCommandOptionType.INTEGER,
+                               required=True,
+                           ),
+                           create_option(
+                               name="report_fix",
+                               description="The action done by the moderator to fix the issue",
+                               option_type=SlashCommandOptionType.STRING,
+                               required=True,
+                           )
+                       ])
+    async def report_fix(self, ctx: SlashContext, report_id: int, report_fix: str):
         try:
             Moderator.get(Moderator.discord_user_id == ctx.author.id)
             report = Report.get_by_id(report_id)
             report.fix(report_fix)
+            await ctx.send(f"{constants.CHECK_EMOJI} Your report fixing has been sent", hidden=True)
         except DoesNotExist:
-            await ctx.author.send(f"{constants.WARNING_EMOJI} You are not a moderator, you cannot access this "
-                                  f"functionality. {constants.WARNING_EMOJI}")
+            await ctx.send(f"{constants.WARNING_EMOJI} You are not a moderator, you cannot access this "
+                           f"functionality. {constants.WARNING_EMOJI}", hidden=True)
 
     ################################
     #       ERRORS HANDLING        #
     ################################
 
-    @report.error
-    async def on_report_error(self, ctx: Context, error):
-        await ctx.author.send(f"{constants.WARNING_EMOJI} Your report is incoherent, you need to send a report that "
-                              f"follow the pattern: **\"{self.bot.command_prefix} report [CATEGORY] [CARD_ID] "
-                              f"[COMMENT]\"** {constants.WARNING_EMOJI}.")
-
-    @report_fix.error
-    async def on_report_fix_error(self, ctx: Context, error):
-        await ctx.author.send(f"{constants.WARNING_EMOJI} Your report fix is incoherent, you need to send a fix that "
-                              f"follow the pattern: **\"{self.bot.command_prefix} report_fix [REPORT_ID] "
-                              f"[COMMENT]\"** {constants.WARNING_EMOJI}.")
+    # @report.error
+    # async def on_report_error(self, ctx: Context, error):
+    #     await ctx.author.send(f"{constants.WARNING_EMOJI} Your report is incoherent, you need to send a report that "
+    #                           f"follow the pattern: **\"{self.bot.command_prefix} report [CATEGORY] [CARD_ID] "
+    #                           f"[COMMENT]\"** {constants.WARNING_EMOJI}.")
+    #
+    # @report_fix.error
+    # async def on_report_fix_error(self, ctx: Context, error):
+    #     await ctx.author.send(f"{constants.WARNING_EMOJI} Your report fix is incoherent, you need to send a fix that "
+    #                           f"follow the pattern: **\"{self.bot.command_prefix} report_fix [REPORT_ID] "
+    #                           f"[COMMENT]\"** {constants.WARNING_EMOJI}.")

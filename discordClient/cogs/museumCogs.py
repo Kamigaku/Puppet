@@ -3,8 +3,9 @@
 from typing import Any
 
 from discord import User, Emoji
-from discord.ext import commands
-from discord.ext.commands import Context
+from discord_slash import cog_ext, SlashContext
+from discord_slash.model import SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_option
 
 from discordClient.cogs import cardCogs
 from discordClient.cogs.abstract import AssignableCogs
@@ -51,17 +52,26 @@ class MuseumCogs(AssignableCogs):
     #       COMMAND COGS           #
     ################################
 
-    @commands.command("museum")
-    async def museum(self, ctx: Context, owner: User = None):
+    @cog_ext.cog_slash(name="museum",
+                       description="Display your complete collection",
+                       options=[
+                           create_option(
+                               name="user",
+                               description="The user to check",
+                               option_type=SlashCommandOptionType.USER,
+                               required=False
+                           )
+                       ])
+    async def museum(self, ctx: SlashContext, user: User = None):
         character_categories = Character.select(Character.category).group_by(Character.category)
         categories = []
         for character_category in character_categories:
             categories.append(f"{character_category.category}")
 
-        if owner is None:
+        if user is None:
             museum_filter = MuseumDataFilter(ctx.author)
         else:
-            museum_filter = MuseumDataFilter(owner)
+            museum_filter = MuseumDataFilter(user)
 
         reaction_museum = [Reaction(event_type=[constants.REACTION_ADD, constants.REACTION_REMOVE],
                                     emojis=constants.ASTERISK_EMOJI,

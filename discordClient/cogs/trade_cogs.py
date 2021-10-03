@@ -1,7 +1,8 @@
 from discord import User, Emoji
-from discord.ext import commands
-from discord.ext.commands import Context
 from peewee import ModelSelect, fn
+from discord_slash import cog_ext, SlashContext
+from discord_slash.model import SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_option, create_choice
 
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
@@ -19,14 +20,24 @@ class TradeCogs(AssignableCogs):
     #       COMMAND COGS           #
     ################################
 
-    @commands.command(name="trade")
-    async def trade(self, ctx: Context, discord_user: User):
-        if discord_user.id == ctx.author.id:
-            await ctx.author.send("You cannot trade with yourself.")
+    @cog_ext.cog_slash(name="trade",
+                       description="Start a trade with an user",
+                       options=[
+                           create_option(
+                               name="user",
+                               description="The user you will trade with",
+                               option_type=SlashCommandOptionType.USER,
+                               required=True,
+                           )
+                       ])
+    async def trade(self, ctx: SlashContext, user: User):
+        if user.id == ctx.author.id:
+            await ctx.send("You cannot trade with yourself.")
+            return
 
         fields = [Fields(title=f"{ctx.author.name}#{ctx.author.discriminator}",
                          data=TradeFieldData()),
-                  Fields(title=f"{discord_user.name}#{discord_user.discriminator}",
+                  Fields(title=f"{user.name}#{user.discriminator}",
                          data=TradeFieldData())]
 
         reaction_recap_menu = [Reaction(event_type=[constants.REACTION_ADD],
@@ -37,7 +48,7 @@ class TradeCogs(AssignableCogs):
                                         callback=self.cancel_trade)]
 
         recap_render = TradeRecapEmbedRender(applicant=ctx.author,
-                                             recipient=discord_user)
+                                             recipient=user)
         recap_menu = ViewWithReactions(puppet_bot=self.bot,
                                        elements_to_display=fields,
                                        render=recap_render,
@@ -67,7 +78,7 @@ class TradeCogs(AssignableCogs):
         trade_data = TradeData(request=query,
                                bounded_view=recap_menu,
                                origin=ctx.author,
-                               destination=discord_user)
+                               destination=user)
         list_menu.set_hidden_data(trade_data)
         recap_menu.set_hidden_data(list_menu)
         await list_menu.display_menu(ctx)
