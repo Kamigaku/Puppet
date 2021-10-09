@@ -54,14 +54,6 @@ class PuppetBot(Bot):
         self.add_cog(TradeCogs(self))
 
     def append_reaction_listener(self, reaction_listener: ReactionListener):
-        if not inspect.ismethod(reaction_listener.callback) and not inspect.isfunction(reaction_listener.callback):
-            raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" is not a function.")
-        if not inspect.iscoroutinefunction(reaction_listener.callback):
-            raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" is not a coroutine function.")
-        number_arguments = len(inspect.getfullargspec(reaction_listener.callback).args)
-        if 1 < number_arguments < 2:
-            raise SyntaxError(f"The callback \"{reaction_listener.callback.__name__}\" must have 1 or 2 parameters.\n"
-                              f"The parameters needs to be: user, [emoji].")
         if reaction_listener.message.id not in self.reaction_listeners:
             self.reaction_listeners[reaction_listener.message.id] = []
         self.reaction_listeners[reaction_listener.message.id].append(reaction_listener)
@@ -79,40 +71,6 @@ class PuppetBot(Bot):
     #       LISTENERS BOT          #
     ################################
 
-    async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
-        await self.on_raw_reaction(payload)
-
-    async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
-        await self.on_raw_reaction(payload)
-
-    async def on_raw_reaction(self, payload: RawReactionActionEvent):
-        if self.user.id == payload.user_id:  # We avoid to react to the current bot reactions
-            return
-
-        string_emoji = str(payload.emoji)
-
-        if payload.message_id not in self.reaction_listeners:
-            return
-        else:
-            message_listener = self.reaction_listeners[payload.message_id]
-
-            for reaction_listener in message_listener:
-                if (payload.event_type in reaction_listener.event_type and string_emoji in reaction_listener.emoji and
-                        (reaction_listener.bound_to is None or
-                         (reaction_listener.bound_to is not None and reaction_listener.bound_to == payload.user_id))):
-
-                    # Retrieve user
-                    user_that_reacted = self.get_user(payload.user_id)
-                    if user_that_reacted is None:
-                        user_that_reacted = await self.fetch_user(payload.user_id)
-                    if user_that_reacted.bot:
-                        return
-
-                    if not reaction_listener.return_emoji:
-                        await reaction_listener.callback(user_that_reacted)
-                    else:
-                        await reaction_listener.callback(user_that_reacted, payload.emoji)
-
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
         if payload.message_id in self.delete_listeners:
             self.logger.info(f"Disposing the message id {payload.message_id}")
@@ -120,27 +78,19 @@ class PuppetBot(Bot):
             self.delete_listeners.pop(payload.message_id)
 
     async def on_component(self, ctx: ComponentContext):
-        if self.user.id == ctx.author.id:  # We avoid to react to the current bot reactions
-            await ctx.defer(ignore=True)
-            return
-
-        if ctx.origin_message_id not in self.reaction_listeners:
-            await ctx.defer(ignore=True)
-            return
-        else:
+        if self.user.id != ctx.author.id and ctx.origin_message_id in self.reaction_listeners:
+            user_that_reacted = None
             message_listener = self.reaction_listeners[ctx.origin_message_id]
-
             for reaction_listener in message_listener:
                 if (reaction_listener.interaction_id == ctx.component_id and
                         (reaction_listener.bound_to is None or
                          (reaction_listener.bound_to is not None and reaction_listener.bound_to == ctx.author_id))):
-
                     # Retrieve user
-                    user_that_reacted = self.get_user(ctx.author_id)
                     if user_that_reacted is None:
-                        user_that_reacted = await self.fetch_user(ctx.author_id)
-                    if user_that_reacted.bot:
-                        await ctx.defer(ignore=True)
-                        return
-                    await reaction_listener.callback(ctx.component_id, user_that_reacted)
-        await ctx.defer(ignore=True)
+                        user_that_reacted = self.get_user(ctx.author_id)
+                        if user_that_reacted is None:
+                            user_that_reacted = await self.fetch_user(ctx.author_id)
+                        if user_that_reacted.bot:
+                            return
+                    await reaction_listener.callback(context=ctx,
+                                                     user_that_interact=user_that_reacted)

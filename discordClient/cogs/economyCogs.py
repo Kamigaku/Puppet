@@ -36,16 +36,15 @@ class EconomyCogs(BaseCogs):
         if amount > 0:
             economy_model, model_created = Economy.get_or_create(discord_user_id=ctx.author.id)
             if economy_model.give_money(discord_user.id, amount):
-                await ctx.author.send(f"You have given {amount} {constants.COIN_NAME} to "
-                                      f"{discord_user.name}#{discord_user.discriminator}")
+                content_to_sender = f"You have given {amount} {constants.COIN_NAME} to " \
+                                    f"{discord_user.name}#{discord_user.discriminator}"
                 await discord_user.send(f"You have been given {amount} {constants.COIN_NAME} from "
                                         f"{ctx.author.name}#{ctx.author.discriminator}")
             else:
-                await ctx.author.send(f"You wanted to give {amount} {constants.COIN_NAME} but you don't have enough.")
-            await ctx.send(content="Command has been successful!", hidden=True)
+                content_to_sender = f"You wanted to give {amount} {constants.COIN_NAME} but you don't have enough."
         else:
-            await ctx.author.send("You cannot give a negative number.")
-            await ctx.send(content="Command has failed!", hidden=True)
+            content_to_sender = "You cannot give a negative number."
+        await ctx.send(content=content_to_sender, hidden=True)
 
     @cog_ext.cog_slash(name="check",
                        description="Check the amount of money in your wallet or in the wallet of someone else",
@@ -60,12 +59,12 @@ class EconomyCogs(BaseCogs):
     async def check_wallet(self, ctx: SlashContext, user: User = None):
         if user is None:
             user_model, user_created = Economy.get_or_create(discord_user_id=ctx.author.id)
-            await ctx.author.send(f"You currently have {user_model.amount} {constants.COIN_NAME}.")
+            content = f"You currently have {user_model.amount} {constants.COIN_NAME}."
         else:
             user_model, user_created = Economy.get_or_create(discord_user_id=user.id)
-            await ctx.author.send(f"The user {user.name}#{user.discriminator} currently have "
-                                  f"{user_model.amount} {constants.COIN_NAME}.")
-        await ctx.send(content="Command has been successful!", hidden=True)
+            content = f"The user {user.name}#{user.discriminator} currently have " \
+                      f"{user_model.amount} {constants.COIN_NAME}."
+        await ctx.send(content=content, hidden=True)
 
     @tasks.loop(minutes=10)
     async def distribute_salary(self):

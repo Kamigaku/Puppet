@@ -91,7 +91,7 @@ class TradeCogs(AssignableCogs):
                                  emoji: Emoji = None):
         offset = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
         index = trade_menu.retrieve_index(offset)
-        hidden_data = trade_menu.retrieve_hidden_data()
+        hidden_data = trade_menu.get_hidden_data()
         if index < len(hidden_data.request):
             ownership = hidden_data.request[index]
             recap_menu_msg = hidden_data.bounded_view
@@ -104,7 +104,7 @@ class TradeCogs(AssignableCogs):
 
     async def change_owner(self, list_menu: PageView123, user_that_reacted: User,
                            emoji: Emoji = None):
-        trade_data = list_menu.retrieve_hidden_data()
+        trade_data = list_menu.get_hidden_data()
         if trade_data.current_user == trade_data.origin:
             trade_data.current_user = trade_data.destination
         else:
@@ -122,12 +122,12 @@ class TradeCogs(AssignableCogs):
 
     async def create_trade(self, list_menu: ViewWithReactions, user_that_reacted: User,
                            emoji: Emoji = None):
-        await list_menu.retrieve_hidden_data().menu_msg.delete()
+        await list_menu.get_hidden_data().menu_msg.delete()
         await list_menu.menu_msg.delete()
 
-        origin = list_menu.retrieve_hidden_data().retrieve_hidden_data().origin
+        origin = list_menu.get_hidden_data().get_hidden_data().origin
         origin_id = origin.id
-        destination = list_menu.retrieve_hidden_data().retrieve_hidden_data().destination
+        destination = list_menu.get_hidden_data().get_hidden_data().destination
         destination_id = destination.id
         if type(list_menu.elements[0].data.data) is list:
             origin_cards = "-".join([str(o.id) for o in list_menu.elements[0].data.data])
@@ -167,12 +167,12 @@ class TradeCogs(AssignableCogs):
 
     async def cancel_trade(self, list_menu: PageView123, user_that_reacted: User,
                            emoji: Emoji = None):
-        await list_menu.retrieve_hidden_data().menu_msg.delete()
+        await list_menu.get_hidden_data().menu_msg.delete()
         await list_menu.menu_msg.delete()
 
     async def accept_trade(self, list_menu: ViewWithReactions, user_that_reacted: User,
                            emoji: Emoji = None):
-        trade = list_menu.retrieve_hidden_data()
+        trade = list_menu.get_hidden_data()
         if trade.accept_trade():
             applicant = await self.retrieve_member(trade.applicant)
             await user_that_reacted.send(f"You have accepted the trade offer from "
@@ -184,7 +184,7 @@ class TradeCogs(AssignableCogs):
 
     async def refuse_trade(self, list_menu: ViewWithReactions, user_that_reacted: User,
                            emoji: Emoji = None):
-        trade = list_menu.retrieve_hidden_data()
+        trade = list_menu.get_hidden_data()
         if trade.refuse_trade():
             applicant = await self.retrieve_member(trade.applicant)
             await applicant.send(f"Your trade offer with {user_that_reacted.name}#{user_that_reacted.discriminator} "
