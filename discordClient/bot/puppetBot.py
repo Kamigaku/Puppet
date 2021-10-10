@@ -9,7 +9,7 @@ from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
 from discordClient.cogs.museumCogs import MuseumCogs
 from discordClient.cogs.report_cogs import ReportCogs
-from discordClient.cogs.trade_cogs import TradeCogs
+#from discordClient.cogs.trade_cogs import TradeCogs
 from discordClient.helper.listener import ReactionListener, DeleteListener
 
 
@@ -51,7 +51,7 @@ class PuppetBot(Bot):
         self.add_cog(CardCogs(self))
         self.add_cog(MuseumCogs(self))
         self.add_cog(ReportCogs(self))
-        self.add_cog(TradeCogs(self))
+        #self.add_cog(TradeCogs(self))
 
     def append_reaction_listener(self, reaction_listener: ReactionListener):
         if reaction_listener.message.id not in self.reaction_listeners:

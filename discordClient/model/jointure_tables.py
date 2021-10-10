@@ -30,4 +30,3 @@ class CharactersOwnership(BaseModel):
         if self.discord_user_id != new_owner:
             self.discord_user_id = new_owner
             self.save()
-

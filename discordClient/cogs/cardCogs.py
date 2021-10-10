@@ -2,8 +2,7 @@ import random
 import uuid
 from itertools import groupby
 
-from discord import User, Member, Embed, Emoji
-from discord.ext.commands import Context
+from discord import Member, Embed
 from discord_slash import cog_ext, SlashContext, ComponentContext
 from discord_slash.utils.manage_commands import create_option
 from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
