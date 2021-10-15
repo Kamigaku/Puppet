@@ -56,7 +56,7 @@ class CharacterEmbedRender(ListEmbedRender):
     def __init__(self, msg_content: str = None):
         super().__init__(msg_content)
 
-    def generate_render(self, data: List[Character], offset: int = 0, starting_index: int = 0) -> Embed:
+    def generate_render(self, data: List[Character] = None, offset: int = 0, starting_index: int = 0) -> Embed:
         # Description
         if len(data.description) > 255:
             character_description = data.description[:255] + "..."
@@ -93,7 +93,7 @@ class CharacterListEmbedRender(ListEmbedRender):
         super().__init__(msg_content)
         self.menu_title = menu_title
 
-    def generate_render(self, data: List[Character], offset: int = 0, starting_index: int = 0) -> Embed:
+    def generate_render(self, data: List[Character] = None, offset: int = 0, starting_index: int = 0) -> Embed:
         embed = Embed()
 
         # Title
@@ -156,7 +156,7 @@ class OwnersCharacterListEmbedRender(CharacterEmbedRender):
         super().__init__(msg_content)
         self.owners = owners
 
-    def generate_render(self, data: List[Character], offset: int = 0, starting_index: int = 0) -> Embed:
+    def generate_render(self, data: List[Character] = None, offset: int = 0, starting_index: int = 0) -> Embed:
         embed = super().generate_render(data, offset, starting_index)
         if self.owners is not None:
             embed.add_field(name=self.owners[offset].title,
@@ -188,7 +188,7 @@ class MuseumCharacterListEmbedRender(ListEmbedRender):
     def __init__(self, msg_content: str = None):
         super().__init__(msg_content)
 
-    def generate_render(self, data: List[Character], offset: int = 0, starting_index: int = 0) -> Embed:
+    def generate_render(self, data: List[Character] = None, offset: int = 0, starting_index: int = 0) -> Embed:
         embed = Embed()
 
         # Title
@@ -219,7 +219,7 @@ class MuseumCharacterOwnershipListEmbedRender(ListEmbedRender):
     def __init__(self):
         super().__init__()
 
-    def generate_render(self, data: CharactersOwnership, offset: int = 0, starting_index: int = 0) -> Embed:
+    def generate_render(self, data: CharactersOwnership = None, offset: int = 0, starting_index: int = 0) -> Embed:
         character = data.character_id
         # Description
         if len(character.description) > 255:
@@ -264,7 +264,7 @@ class TradeRecapEmbedRender(EmbedRender):
         self.recipient = recipient
         self.menu_title = menu_title
 
-    def generate_render(self, data: List[Fields]) -> Embed:
+    def generate_render(self, data: List[Fields] = None) -> Embed:
         embed = Embed()
 
         embed.set_author(name=f"{self.applicant.name}#{self.applicant.discriminator}",
@@ -296,9 +296,19 @@ class TradeNumbersListEmbedRender(NumbersListEmbedRender):
         super().__init__(menu_title)
         self.current_owner = current_owner
 
-    def generate_render(self, data: List[str] = None, offset: int = 0, starting_index: int = 0) -> Embed:
-        embed = super().generate_render(data, offset, starting_index)
+    def generate_render(self, data: List[CharactersOwnership] = None, offset: int = 0,
+                        starting_index: int = 0) -> Embed:
+        embed = Embed()
+        if self.menu_title is not None:
+            embed.title = self.menu_title
+        description = ""
+        for element in data:
+            description += f"{constants.RARITIES_EMOJI[element.character_id.rarity]} " \
+                           f"**[{constants.RARITIES_LABELS[element.character_id.rarity]}] " \
+                           f"{element.character_id.name}**"
+            description += f"\n{element.affiliations}\n"
+        embed.description = description
+        embed.set_footer(text=f"Page {offset + 1}")
         embed.set_author(name=f"{self.current_owner.name}#{self.current_owner.discriminator}",
                          icon_url=self.current_owner.avatar_url)
-        embed.title = "Summary of owned characters"
         return embed

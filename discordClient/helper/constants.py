@@ -1,6 +1,8 @@
 import unicodedata
 
 from discord import Colour
+from discord_slash import ButtonStyle
+from discord_slash.utils.manage_components import create_button
 
 COIN_NAME = "biteCoin"
 
@@ -31,6 +33,8 @@ CHECK_EMOJI = "\U00002705"
 DETAILS_EMOJI = "\U0001F50D"
 RED_CROSS_EMOJI = "\U0000274C"
 ROTATE_EMOJI = "\U0001F504"
+LOCK_EMOJI = "\U0001F512"
+HEART_EMOJI = "\U00002764"
 
 RARITIES_LABELS = ["E", "D", "C", "B", "A", "S", "SS"]
 RARITIES_COLORS = [Colour(0x9B9B9B), Colour(0xFFFFFF), Colour(0x69e15e), Colour(0x4ccfff), Colour(0xf0b71c),
@@ -56,3 +60,13 @@ PUPPET_IDS = {"CARD_COGS_BUY": 1,
 
 REACTION_ADD = "REACTION_ADD"
 REACTION_REMOVE = "REACTION_REMOVE"
+
+# BUTTONS
+SELL_BUTTON = create_button(style=ButtonStyle.green, label="Sell", custom_id="sell_card", emoji=SELL_EMOJI)
+REPORT_BUTTON = create_button(style=ButtonStyle.red, label="Report", custom_id="report_card", emoji=REPORT_EMOJI)
+LOCK_BUTTON = create_button(style=ButtonStyle.blue, label="Lock", custom_id="lock_card", emoji=LOCK_EMOJI)
+FAVORITE_BUTTON = create_button(style=ButtonStyle.blue, label="Favorite", custom_id="favorite_card", emoji=HEART_EMOJI)
+VALIDATE_BUTTON = create_button(style=ButtonStyle.green, label="Validate", custom_id="validate", emoji=CHECK_EMOJI)
+CANCEL_BUTTON = create_button(style=ButtonStyle.red, label="Cancel", custom_id="cancel", emoji=RED_CROSS_EMOJI)
+CHANGE_OWNER_BUTTON = create_button(style=ButtonStyle.blue, label="Change owner", custom_id="change_owner",
+                                    emoji=ROTATE_EMOJI)

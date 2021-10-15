@@ -4,6 +4,11 @@ from discordClient.model import Economy, Affiliation, Character
 from discordClient.model.meta_model import BaseModel
 
 
+class CharacterFavorites(BaseModel):
+    character_id = ForeignKeyField(Character, backref='favorited_by')
+    discord_user_id = IntegerField()
+
+
 class CharacterAffiliation(BaseModel):
     character_id = ForeignKeyField(Character, backref='affiliated_to')
     affiliation_id = ForeignKeyField(Affiliation, backref='affiliated_by')
@@ -14,6 +19,7 @@ class CharactersOwnership(BaseModel):
     character_id = ForeignKeyField(Character, backref='owned_by')
     message_id = IntegerField()
     is_sold = BooleanField(default=False)
+    is_locked = BooleanField(default=False)
     dropped_by = IntegerField(default=discord_user_id)
 
     def sell(self) -> int:
@@ -30,3 +36,11 @@ class CharactersOwnership(BaseModel):
         if self.discord_user_id != new_owner:
             self.discord_user_id = new_owner
             self.save()
+
+    def lock(self) -> bool:
+        self.is_locked = not self.is_locked
+        self.save()
+        return self.is_locked
+
+    def __str__(self):
+        return f"{self.character_id}"

@@ -11,7 +11,8 @@ from peewee import fn
 
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
-from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation
+from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, \
+    CharacterFavorites
 from discordClient.views import PageView, Reaction, Fields, CharacterListEmbedRender, OwnersCharacterListEmbedRender, \
     MuseumCharacterOwnershipListEmbedRender, ViewReactionsLine
 
@@ -94,28 +95,16 @@ class CardCogs(AssignableCogs):
                 await page_view.display_menu(ctx)
 
                 # First character displaying
-
-                sell_button = create_button(
-                    style=ButtonStyle.green,
-                    label="Sell",
-                    custom_id="sell_card",
-                    emoji=constants.SELL_EMOJI
-                )
-                report_button = create_button(
-                    style=ButtonStyle.red,
-                    label="Report",
-                    custom_id="report_card",
-                    emoji=constants.REPORT_EMOJI
-                )
-                buttons_line = ViewReactionsLine()
-                buttons_line.add_reaction(Reaction(button=sell_button, callback=sell_card))
-                buttons_line.add_reaction(Reaction(button=report_button, callback=report_card))
+                actions_line = ViewReactionsLine()
+                actions_line.add_reaction(Reaction(button=constants.SELL_BUTTON, callback=sell_card))
+                actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=favorite_card))
+                actions_line.add_reaction(Reaction(button=constants.LOCK_BUTTON, callback=lock_card))
+                actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
 
                 character_renderer = MuseumCharacterOwnershipListEmbedRender()
                 characters_view = PageView(puppet_bot=self.bot,
                                            elements_to_display=characters_owned_models,
-                                           bound_to=ctx.author,
-                                           lines=[buttons_line],
+                                           lines=[actions_line],
                                            elements_per_page=1,
                                            render=character_renderer)
                 await characters_view.display_menu(ctx)
@@ -157,52 +146,45 @@ class CardCogs(AssignableCogs):
             if len(query) > 0:
                 characters_field = []
                 for character in query:
+                    # Create the "Owned by" fields in the search
                     mutual_owners = []
                     if len(character.owned_by) > 0:
                         for owner in character.owned_by:
                             if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_owners:
                                 mutual_owners.append(owner.discord_user_id)
-
                     character_field = Fields(title="Owners of the card",
                                              data=CardOwnerFieldData())
+
+                    # Create the "Favorited by" fields in the search
+                    mutual_favorites = []
+                    if len(character.favorited_by) > 0:
+                        for owner in character.favorited_by:
+                            if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_owners:
+                                mutual_favorites.append(owner.discord_user_id)
+                    favorited_field = Fields(title="Favorited by",
+                                             data=CardOwnerFieldData()) # Marche pas ici
+
                     for mutual_owner in mutual_owners:
                         character_field.data.update_owner(self.bot.get_user(mutual_owner))
-                    characters_field.append(character_field)
+                    for mutual_favorite in mutual_favorites:
+                        favorited_field.data.update_owner(self.bot.get_user(mutual_favorite))
+                    characters_field.append([character_field, favorited_field])
 
+                # First character displaying
+                actions_line = ViewReactionsLine()
+                actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=favorite_card))
+                actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
                 search_menu_renderer = OwnersCharacterListEmbedRender(msg_content=f"Found {query.count()} result(s).",
                                                                       owners=characters_field)
                 search_menu = PageView(puppet_bot=self.bot,
                                        elements_to_display=query,
                                        render=search_menu_renderer,
                                        bound_to=ctx.author,
+                                       lines=[actions_line],
                                        delete_after=600)
                 await search_menu.display_menu(ctx)
             else:
                 await ctx.send(f"No results has been found for the query \"{name}\".")
-
-    @cog_ext.cog_slash(name="test",
-                       description="Test function.")
-    async def test(self, ctx: SlashContext):
-        buttons = [
-            create_button(
-                style=ButtonStyle.green,
-                label="A Green Button",
-                custom_id="hello_49"
-            )
-        ]
-        select = create_select(
-            options=[  # the options in your dropdown
-                create_select_option("Lab Coat", value="coat", emoji="🥼"),
-                create_select_option("Test Tube", value="tube", emoji="🧪"),
-                create_select_option("Petri Dish", value="dish", emoji="🧫"),
-            ],
-            placeholder="Choose your option",  # the placeholder text to show when no options have been chosen
-            min_values=1,  # the minimum number of options a user must select
-            max_values=2,  # the maximum number of options a user can select
-        )
-        action_row = create_actionrow(*buttons)
-        select_row = create_actionrow(select)
-        await ctx.send("My Message", components=[action_row, select_row])
 
     ################################
     #       ERRORS HANDLING        #
@@ -214,10 +196,6 @@ class CardCogs(AssignableCogs):
     #                    f"Please contact an admin.")
     #     await ctx.send(f"{constants.RED_CROSS_EMOJI} Stack trace: {error}")
     #     self.currently_opening_cards.remove(ctx.author.id)
-
-    @cog_ext.cog_component(components="hello_49")
-    async def hello(self, ctx: ComponentContext):
-        await ctx.edit_origin(content="You pressed a button!")
 
 
 class CardOwnerFieldData:
@@ -241,6 +219,38 @@ class CardOwnerFieldData:
             self.owners.append(owner)
 
 
+async def favorite_card(**t):
+    menu = t["menu"]
+    user_that_interact = t["user_that_interact"]
+    context = t["context"]
+    character_model = menu.retrieve_element(menu.offset)
+    if type(character_model) is CharactersOwnership:
+        character_model = character_model.character_id
+    model, model_created = CharacterFavorites.get_or_create(character_id=character_model.id,
+                                                            discord_user_id=user_that_interact.id)
+    if not model_created:
+        model.delete_instance()
+    if model_created:
+        await context.send(f"You added to your favorites the card {character_model}.", hidden=True)
+    else:
+        await context.send(f"You removed from your favorites the card {character_model}.", hidden=True)
+
+
+async def lock_card(**t):
+    menu = t["menu"]
+    user_that_interact = t["user_that_interact"]
+    context = t["context"]
+    ownership_model = menu.retrieve_element(menu.offset)
+    if user_that_interact.id == ownership_model.discord_user_id:
+        new_state = ownership_model.lock()
+        if new_state:
+            await context.send(f"You have locked the card {ownership_model}.", hidden=True)
+        else:
+            await context.send(f"You have unlocked the card {ownership_model}.", hidden=True)
+    else:
+        await context.send("You are not the owner of the card, you cannot lock it.", hidden=True)
+
+
 async def sell_card(**t):
     menu = t["menu"]
     user_that_interact = t["user_that_interact"]
@@ -251,10 +261,10 @@ async def sell_card(**t):
         if price_sold > 0:
             await user_that_interact.send(f"You have sold this card for {price_sold} {constants.COIN_NAME}.")
         else:
-            await user_that_interact.send(f"You have already sold this card and cannot sell it again. "
-                                          f"If you think this is an error, please communicate to a moderator.")
+            await context.send(f"You have already sold this card and cannot sell it again. "
+                               f"If you think this is an error, please communicate to a moderator.", hidden=True)
     else:
-        await user_that_interact.send("You are not the owner of the card, you cannot sell it.")
+        await context.send("You are not the owner of the card, you cannot sell it.", hidden=True)
     await context.defer(ignore=True)
 
 

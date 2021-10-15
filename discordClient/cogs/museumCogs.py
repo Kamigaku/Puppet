@@ -3,7 +3,7 @@
 from typing import Any, List
 
 from discord import User, Emoji
-from discord_slash import cog_ext, SlashContext
+from discord_slash import cog_ext, SlashContext, ComponentContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
 from discord_slash.utils.manage_components import create_select_option, create_select
@@ -103,6 +103,7 @@ class MuseumCogs(AssignableCogs):
                                               elements_to_display=query,
                                               render=characters_renderer,
                                               lines=[rarity_select_line, affiliation_select_line],
+                                              callback_element_selection=self.display_character,
                                               delete_after=600,
                                               elements_per_page=10)
         category_menu.set_hidden_data(museum_filter)
@@ -216,34 +217,29 @@ class MuseumCogs(AssignableCogs):
                                            custom_id="affiliation_select")
         return affiliation_select
 
-    # async def display_character(self, menu_update: PageView123, user_that_reacted: User,
-    #                             emoji: Emoji = None):
-    #     if emoji.name not in constants.NUMBER_EMOJIS:
-    #         return
-    #     offset = constants.NUMBER_EMOJIS.index(emoji.name) - 1  # start at 1
-    #     index = menu_update.retrieve_index(offset)
-    #
-    #     character_list = menu_update.get_hidden_data()
-    #     character_concerned = character_list[index]
-    #     ownership_models = (CharactersOwnership.select()
-    #                                            .where((CharactersOwnership.character_id == character_concerned.id) &
-    #                                                   (CharactersOwnership.discord_user_id ==
-    #                                                   character_concerned.charactersownership.discord_user_id) &
-    #                                                   (CharactersOwnership.is_sold == False)))
-    #
-    #     reaction_characters = [Reaction(event_type=constants.REACTION_ADD,
-    #                                     emojis=constants.SELL_EMOJI,
-    #                                     callback=cardCogs.sell_card),
-    #                            Reaction(event_type=constants.REACTION_ADD,
-    #                                     emojis=constants.REPORT_EMOJI,
-    #                                     callback=cardCogs.report_card)]
-    #
-    #     characters_renderer = MuseumCharacterOwnershipListEmbedRender()
-    #
-    #     characters_view = PageView(puppet_bot=self.bot,
-    #                                elements_to_display=ownership_models,
-    #                                render=characters_renderer,
-    #                                bound_to=menu_update.bound_to,
-    #                                reactions=reaction_characters,
-    #                                delete_after=60)
-    #     await characters_view.display_menu(menu_update.menu_msg.channel)
+    async def display_character(self, context: ComponentContext,
+                                menu: PageViewSelectElement, selected_index: int, selected_element: Character):
+        await context.defer(ignore=True)
+        ownership_models = (CharactersOwnership.select()
+                                               .where((CharactersOwnership.character_id == selected_element.id) &
+                                                      (CharactersOwnership.discord_user_id ==
+                                                      selected_element.charactersownership.discord_user_id) &
+                                                      (CharactersOwnership.is_sold == False)))
+
+        characters_renderer = MuseumCharacterOwnershipListEmbedRender()
+
+        actions_line = ViewReactionsLine()
+        if menu.get_hidden_data().owner.id == context.author_id:
+            actions_line.add_reaction(Reaction(button=constants.SELL_BUTTON, callback=cardCogs.sell_card))
+        actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=cardCogs.favorite_card))
+        if menu.get_hidden_data().owner.id == context.author_id:
+            actions_line.add_reaction(Reaction(button=constants.LOCK_BUTTON, callback=cardCogs.lock_card))
+        actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=cardCogs.report_card))
+
+        characters_view = PageView(puppet_bot=self.bot,
+                                   elements_to_display=ownership_models,
+                                   render=characters_renderer,
+                                   bound_to=menu.bound_to,
+                                   lines=[actions_line],
+                                   delete_after=60)
+        await characters_view.display_menu(menu.menu_msg.channel)

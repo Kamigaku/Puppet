@@ -1,7 +1,9 @@
 from typing import Any, List
 import math
 
-from discord import User, Message, Emoji
+from discord import User, Message
+from discord.abc import Messageable
+from discord_slash import ComponentMessage
 from discord_slash.context import InteractionContext, ComponentContext
 from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
 from discord_slash.model import ButtonStyle
@@ -70,14 +72,33 @@ class ViewWithReactions(Disposable):
         self.menu_msg = await context.send(content=self.render.generate_content(),
                                            embed=self.render.generate_render(self.elements),
                                            components=actions_row)
+
+        for line in self.lines:
+            for reaction in line.reactions:
+                self.puppet_bot.append_reaction_listener(ReactionListener(callback=self.reaction_callback,
+                                                                          message=self.menu_msg,
+                                                                          interaction_id=reaction.button["custom_id"],
+                                                                          bound_to=self.bound_to))
+
         if self.menu_msg is not None:
             self.puppet_bot.append_delete_listener(DeleteListener(message=self.menu_msg,
                                                                   disposable_object=self))
         return self.menu_msg
 
-    async def update_menu(self, context: ComponentContext):
-        await context.edit_origin(content=self.render.generate_content(),
-                                  embed=self.render.generate_render(self.elements))
+    async def update_menu(self, context: ComponentContext = None, message: ComponentMessage = None):
+        if context is None and message is None:
+            return
+        actions_row = []
+        for line in self.lines:
+            actions_row.append(line.create_action_row())
+        if context is not None:
+            await context.edit_origin(content=self.render.generate_content(),
+                                      embed=self.render.generate_render(self.elements),
+                                      components=actions_row)
+        else:
+            await message.edit(content=self.render.generate_content(),
+                               embed=self.render.generate_render(self.elements),
+                               components=actions_row)
 
     def update_datas(self, elements_to_display: list = None, render: EmbedRender = None):
         if elements_to_display is not None:
@@ -111,6 +132,12 @@ class ViewWithReactions(Disposable):
                 return reaction
         return None
 
+    async def remove_components(self, context: ComponentContext = None, message: ComponentMessage = None):
+        if self.menu_msg is not None:
+            self.lines.clear()
+            self.puppet_bot.execute_delete_listener(self.menu_msg.id)
+            await self.update_menu(context=context, message=message)
+
 
 class PageView(ViewWithReactions):
 
@@ -122,18 +149,21 @@ class PageView(ViewWithReactions):
         if lines is not None:
             lines = lines.copy()
 
+        disabled = len(elements_to_display) < elements_per_page
         # First line - Next and previous page buttons
         next_button = create_button(
             style=ButtonStyle.blue,
             label="Next page",
             custom_id="next_page",
-            emoji=constants.RIGHT_ARROW_EMOJI
+            emoji=constants.RIGHT_ARROW_EMOJI,
+            disabled=disabled
         )
         previous_button = create_button(
             style=ButtonStyle.blue,
             label="Previous page",
             custom_id="previous_page",
-            emoji=constants.LEFT_ARROW_EMOJI
+            emoji=constants.LEFT_ARROW_EMOJI,
+            disabled=disabled
         )
 
         buttons_line = ViewReactionsLine()
@@ -146,13 +176,13 @@ class PageView(ViewWithReactions):
         for i in range(1, min(math.ceil(len(elements_to_display) / elements_per_page) + 1, 26)):
             page_select_options.append(create_select_option(f"Page #{i}", value=f"{i - 1}"))
 
-        if len(page_select_options) > 1:  # if we don't have elements or only one, we don't display it
-            page_select = create_select(options=page_select_options, placeholder="Select the page you want to go to",
-                                        custom_id="page_select")
-            page_select_line = ViewReactionsLine()
-            page_select_line.add_reaction(Reaction(button=page_select, callback=self.select_page))
-            # Add select to GUI
-            lines.append(page_select_line)
+        disabled = len(page_select_options) < 2
+        page_select = create_select(options=page_select_options, placeholder="Select the page you want to go to",
+                                    custom_id="page_select", disabled=disabled)
+        page_select_line = ViewReactionsLine()
+        page_select_line.add_reaction(Reaction(button=page_select, callback=self.select_page))
+        # Add select to GUI
+        lines.append(page_select_line)
 
         super().__init__(puppet_bot=puppet_bot,
                          elements_to_display=elements_to_display,
@@ -191,7 +221,10 @@ class PageView(ViewWithReactions):
 
         return self.menu_msg
 
-    async def update_menu(self, context: ComponentContext):
+    async def update_menu(self, context: ComponentContext = None, message: ComponentMessage = None):
+        if context is None and message is None:
+            return
+
         if self.elements_per_page > 1:
             elements_to_display = self.elements[self.offset * self.elements_per_page:
                                                 (self.offset + 1) * self.elements_per_page]
@@ -210,10 +243,14 @@ class PageView(ViewWithReactions):
                                                                         value=f"{i + starting_value - 1}"))
                     else:
                         break
-                select_button = create_select(options=page_select_options,
-                                              placeholder="Select the page you want to go to",
-                                              custom_id="page_select")
-                reaction.button = select_button
+                if len(page_select_options) == 0:
+                    reaction.button["disabled"] = True
+                else:
+                    select_button = create_select(options=page_select_options,
+                                                  placeholder="Select the page you want to go to",
+                                                  custom_id="page_select")
+                    reaction.button = select_button
+
                 break
 
         # Edit the UI
@@ -221,7 +258,11 @@ class PageView(ViewWithReactions):
         embed = self.render.generate_render(elements_to_display, self.offset, self.offset * self.elements_per_page)
 
         components = self.generate_actions_row()
-        await context.edit_origin(content=content, embed=embed, components=components)
+
+        if context is not None:
+            await context.edit_origin(content=content, embed=embed, components=components)
+        else:
+            await message.edit(content=content, embed=embed, components=components)
 
     def update_datas(self, elements_to_display: list = None, render: EmbedRender = None,
                      elements_per_page: int = None):
@@ -293,14 +334,17 @@ class PageViewSelectElement(PageView):
         for i in range(0, elements_per_page):
             elements_select_options.append(create_select_option(f"{elements_to_display[i]}", value=f"{i}"))
 
-        if len(elements_select_options) > 1:  # if we don't have elements or only one, we don't display it
-            element_select = create_select(options=elements_select_options,
-                                           placeholder="Select an element",
-                                           custom_id="element_select")
-            page_select_line = ViewReactionsLine()
-            page_select_line.add_reaction(Reaction(button=element_select, callback=self.element_selected))
-            # Add select to GUI
-            lines.append(page_select_line)
+        disabled = len(elements_select_options) == 0  # if we don't have elements we disabled the selection
+        if disabled:
+            elements_select_options.append(create_select_option("Invalid element", value=str(-1)))
+        element_select = create_select(options=elements_select_options,
+                                       placeholder="Select an element",
+                                       custom_id="element_select",
+                                       disabled=disabled)
+        page_select_line = ViewReactionsLine()
+        page_select_line.add_reaction(Reaction(button=element_select, callback=self.element_selected))
+        # Add select to GUI
+        lines.append(page_select_line)
 
         super().__init__(puppet_bot=puppet_bot,
                          elements_to_display=elements_to_display,
@@ -313,30 +357,36 @@ class PageViewSelectElement(PageView):
                          elements_per_page=elements_per_page)
         self.callback_element_selection = callback_element_selection
 
-    async def update_menu(self, context: ComponentContext):
+    async def update_menu(self, context: ComponentContext = None, message: ComponentMessage = None):
         for line in self.lines:
             reaction = line.retrieve_button("element_select")
             if reaction is not None:
                 # Create the elements selection
                 elements_select_options = []
                 for i in range(0, self.elements_per_page):
-                    elements_select_options.append(
-                        create_select_option(f"{self.elements[(self.offset * self.elements_per_page) + i]}",
-                                             value=f"{(self.offset * self.elements_per_page) + i}"))
+                    index = (self.offset * self.elements_per_page) + i
+                    if index < len(self.elements):
+                        elements_select_options.append(
+                            create_select_option(f"{self.elements[index]}", value=f"{index}"))
+                    else:
+                        break
 
-                if len(elements_select_options) > 1:  # if we don't have elements or only one, we don't display it
+                if len(elements_select_options) > 0:  # if we don't have elements or only one, we don't display it
                     element_select = create_select(options=elements_select_options,
                                                    placeholder="Select an element",
                                                    custom_id="element_select")
                     reaction.button = element_select
+                else:
+                    reaction.button["disabled"] = True
                 break
-        await super().update_menu(context)
+        await super().update_menu(context=context, message=message)
 
     async def element_selected(self, **t):
-        selected_option = int(t["context"].selected_options[0])
-        if selected_option != self.offset:
-            self.offset = selected_option
-            await self.update_menu(t["context"])
-            if self.callback_prev is not None:
-                self.callback_element_selection(menu=t["menu"],
-                                     user_that_interact=t["user_that_interact"])
+        if self.callback_element_selection is not None:
+            selected_option = int(t["context"].selected_options[0])
+            selected_element = self.retrieve_element(selected_option)
+            if selected_element is not None:
+                await self.callback_element_selection(context=t["context"],
+                                                      menu=t["menu"],
+                                                      selected_index=selected_option,
+                                                      selected_element=selected_element)

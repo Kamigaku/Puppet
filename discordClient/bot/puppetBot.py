@@ -9,7 +9,7 @@ from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
 from discordClient.cogs.museumCogs import MuseumCogs
 from discordClient.cogs.report_cogs import ReportCogs
-#from discordClient.cogs.trade_cogs import TradeCogs
+from discordClient.cogs.trade_cogs import TradeCogs
 from discordClient.helper.listener import ReactionListener, DeleteListener
 
 
@@ -51,7 +51,7 @@ class PuppetBot(Bot):
         self.add_cog(CardCogs(self))
         self.add_cog(MuseumCogs(self))
         self.add_cog(ReportCogs(self))
-        #self.add_cog(TradeCogs(self))
+        self.add_cog(TradeCogs(self))
 
     def append_reaction_listener(self, reaction_listener: ReactionListener):
         if reaction_listener.message.id not in self.reaction_listeners:
@@ -67,15 +67,18 @@ class PuppetBot(Bot):
         if delete_listener.message.id not in self.delete_listeners:
             self.delete_listeners[delete_listener.message.id] = delete_listener
 
+    def execute_delete_listener(self, message_id: int):
+        self.logger.info(f"Disposing the message id {message_id}")
+        self.delete_listeners[message_id].dispose()
+        self.delete_listeners.pop(message_id)
+
     ################################
     #       LISTENERS BOT          #
     ################################
 
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
         if payload.message_id in self.delete_listeners:
-            self.logger.info(f"Disposing the message id {payload.message_id}")
-            self.delete_listeners[payload.message_id].dispose()
-            self.delete_listeners.pop(payload.message_id)
+            self.execute_delete_listener(payload.message_id)
 
     async def on_component(self, ctx: ComponentContext):
         if self.user.id != ctx.author.id and ctx.origin_message_id in self.reaction_listeners:
