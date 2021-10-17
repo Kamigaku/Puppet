@@ -99,7 +99,7 @@ class ViewWithReactions(Disposable):
                                embed=self.render.generate_render(self.elements),
                                components=actions_row)
 
-    def update_datas(self, elements_to_display: list = None, render: EmbedRender = None):
+    def update_datas(self, elements_to_display: List = None, render: EmbedRender = None):
         if elements_to_display is not None:
             self.elements = elements_to_display
         if render is not None:
@@ -140,7 +140,7 @@ class ViewWithReactions(Disposable):
 
 class PageView(ViewWithReactions):
 
-    def __init__(self, puppet_bot, elements_to_display: list, render: ListEmbedRender,
+    def __init__(self, puppet_bot, elements_to_display: List, render: ListEmbedRender,
                  bound_to: User = None, lines: List[ViewReactionsLine] = [],
                  delete_after: int = None,
                  callback_prev=None, callback_next=None, callback_select=None,
@@ -263,7 +263,7 @@ class PageView(ViewWithReactions):
         else:
             await message.edit(content=content, embed=embed, components=components)
 
-    def update_datas(self, elements_to_display: list = None, render: EmbedRender = None,
+    def update_datas(self, elements_to_display: List = None, render: EmbedRender = None,
                      elements_per_page: int = None):
         super().update_datas(elements_to_display=elements_to_display,
                              render=render)
@@ -318,7 +318,7 @@ class PageView(ViewWithReactions):
 
 class PageViewSelectElement(PageView):
 
-    def __init__(self, puppet_bot, elements_to_display: list, render: ListEmbedRender,
+    def __init__(self, puppet_bot, elements_to_display: List, render: ListEmbedRender,
                  bound_to: User = None, lines: List[ViewReactionsLine] = [],
                  delete_after: int = None,
                  callback_prev=None, callback_next=None, callback_select=None,

@@ -9,7 +9,7 @@ from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Affiliation, CharacterAffiliation, CharactersOwnership, Character, Trade
 from discordClient.views import ViewWithReactions, Fields, Reaction, TradeRecapEmbedRender, \
-    TradeNumbersListEmbedRender, PageViewSelectElement, ViewReactionsLine
+    TradeNumbersListEmbedRender, PageViewSelectElement, ViewReactionsLine, List
 
 
 class TradeCogs(AssignableCogs):
@@ -234,7 +234,7 @@ class TradeCogs(AssignableCogs):
     ################################
 
     @staticmethod
-    def generate_request(user_id, rarity: list[int] = None, affiliation: str = None):
+    def generate_request(user_id, rarity: List[int] = None, affiliation: str = None):
         query = (CharactersOwnership.select(CharactersOwnership.id, CharactersOwnership.discord_user_id,
                                             Character.name, Character.category, Character.rarity, Character.id,
                                             fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
