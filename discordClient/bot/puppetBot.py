@@ -21,8 +21,7 @@ class PuppetBot(Bot):
         intents.reactions = True
         super().__init__(command_prefix=commands_prefix, intents=intents,
                          self_bot=True)
-        self.slash = SlashCommand(self, sync_commands=True, delete_from_unused_guilds=True,
-                                  debug_guild=877098506211442719)
+        self.slash = SlashCommand(self, sync_commands=True, debug_guild=877098506211442719)
         self.reaction_listeners = {}
         self.delete_listeners = {}
 
