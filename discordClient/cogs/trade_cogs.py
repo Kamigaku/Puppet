@@ -3,6 +3,7 @@ from peewee import ModelSelect, fn
 from discord_slash import cog_ext, SlashContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
+from discord_slash.utils.manage_components import create_select_option, create_select
 
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
@@ -60,11 +61,22 @@ class TradeCogs(AssignableCogs):
                                                         current_owner=ctx.author)
         actions_line = ViewReactionsLine()
         actions_line.add_reaction(Reaction(button=constants.CHANGE_OWNER_BUTTON, callback=self.change_owner))
+
+        # # Rarities selection
+        # rarity_select_line = ViewReactionsLine()
+        # rarity_select_line.add_reaction(Reaction(button=constants.RARITY_SELECT, callback=self.rarity_selected))
+        #
+        # # Affiliation selection
+        # affiliation_select = self.generate_affiliations_select()
+        # affiliation_select_line = ViewReactionsLine()
+        # affiliation_select_line.add_reaction(Reaction(button=affiliation_select, callback=self.affiliation_selected))
+
         list_menu = PageViewSelectElement(puppet_bot=self.bot,
                                           elements_to_display=query,
                                           render=trade_list_render,
                                           elements_per_page=10,
                                           bound_to=ctx.author,
+                                          #lines=[actions_line, rarity_select_line, affiliation_select_line],
                                           lines=[actions_line],
                                           callback_element_selection=self.update_trade_offer,
                                           delete_after=600)
@@ -80,6 +92,34 @@ class TradeCogs(AssignableCogs):
     ################################
     #       CALLBACKS              #
     ################################
+
+    async def rarity_selected(self, **t):
+        context = t["context"]
+        menu = t["menu"]
+        # museum_filter = menu.get_hidden_data()
+        # museum_filter.set_rarity(context.selected_options)
+        # await self.refresh_museum(context, menu, museum_filter)
+
+    async def affiliation_selected(self, **t):
+        context = t["context"]
+        menu = t["menu"]
+        # affiliation_selected = context.selected_options[0]
+        # museum_filter = menu.get_hidden_data()
+        # if affiliation_selected in ["previous_affiliation", "next_affiliation"]:
+        #     if affiliation_selected == "previous_affiliation":
+        #         museum_filter.affiliation_offset -= 1
+        #     elif affiliation_selected == "next_affiliation":
+        #         museum_filter.affiliation_offset += 1
+        #     menu.set_hidden_data(museum_filter)
+        #     reaction_affiliation = menu.retrieve_button("affiliation_select")
+        #     reaction_affiliation.button = self.generate_affiliations_select(museum_filter)
+        #     await menu.update_menu(context)
+        # else:
+        #     if affiliation_selected == "all_affiliation":
+        #         museum_filter.set_affiliation(None)
+        #     else:
+        #         museum_filter.set_affiliation(affiliation_selected)
+        #     await self.refresh_museum(context, menu, museum_filter)
 
     @staticmethod
     async def update_trade_offer(context, menu, selected_index, selected_element):
@@ -194,18 +234,24 @@ class TradeCogs(AssignableCogs):
     ################################
 
     @staticmethod
-    def generate_request(user_id):
+    def generate_request(user_id, rarity: list[int] = None, affiliation: str = None):
         query = (CharactersOwnership.select(CharactersOwnership.id, CharactersOwnership.discord_user_id,
                                             Character.name, Character.category, Character.rarity, Character.id,
                                             fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
                                     .join_from(CharactersOwnership, Character)
                                     .join_from(Character, CharacterAffiliation)
-                                    .join_from(CharacterAffiliation, Affiliation)
-                                    .where((CharactersOwnership.discord_user_id == user_id) &
-                                           (CharactersOwnership.is_sold == False) &
-                                           (CharactersOwnership.is_locked == False))
-                                    .group_by(CharactersOwnership.id)
-                                    .order_by(Character.rarity.desc(), Character.name.asc()))
+                                    .join_from(CharacterAffiliation, Affiliation))
+
+        if rarity is not None:
+            query = query.where(Character.rarity << rarity)
+        if affiliation is not None:
+            query = (query.where(Affiliation.name == affiliation))
+
+        query = (query.where((CharactersOwnership.discord_user_id == user_id) &
+                             (CharactersOwnership.is_sold == False) &
+                             (CharactersOwnership.is_locked == False))
+                      .group_by(CharactersOwnership.id)
+                      .order_by(Character.rarity.desc(), Character.name.asc()))
 
         elements_to_display = []
         for ownership in query:
@@ -216,6 +262,33 @@ class TradeCogs(AssignableCogs):
             character_field += f"\n{affiliation_text}\n"
             elements_to_display.append(character_field)
         return query, elements_to_display
+
+    @staticmethod
+    def generate_affiliations_select():
+        # Affiliation selection
+        affiliations_options = []
+        query = Affiliation.select(Affiliation.name)
+        affiliations_options.append(create_select_option(f"All affiliations",
+                                                         value=f"all_affiliation",
+                                                         emoji=f"{constants.ASTERISK_EMOJI}"))
+        affiliations_options.append(create_select_option(f"Previous affiliations",
+                                                         value=f"previous_affiliation",
+                                                         emoji=f"{constants.LEFT_ARROW_EMOJI}"))
+        affiliations_options.append(create_select_option(f"Next affiliations",
+                                                         value=f"next_affiliation",
+                                                         emoji=f"{constants.RIGHT_ARROW_EMOJI}"))
+        # if museum_filter.affiliation_offset < 0:
+        #     museum_filter.affiliation_offset = 0
+        # elif museum_filter.affiliation_offset * 22 > len(query):
+        #     museum_filter.affiliation_offset -= 1
+
+        for affiliation in query.paginate(1, 22):
+            affiliations_options.append(create_select_option(f"{affiliation.name}",
+                                                             value=f"{affiliation.name}"))
+        affiliation_select = create_select(options=affiliations_options,
+                                           placeholder="Select the affiliation you want to display",
+                                           custom_id="affiliation_select")
+        return affiliation_select
 
 
 class TradeData:

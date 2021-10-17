@@ -1,8 +1,7 @@
-import inspect
 import logging
 
 from discord.ext.commands import Bot
-from discord import Intents, RawReactionActionEvent, RawMessageDeleteEvent
+from discord import Intents, RawMessageDeleteEvent
 from discord_slash import SlashCommand, ComponentContext
 
 from discordClient.cogs.cardCogs import CardCogs

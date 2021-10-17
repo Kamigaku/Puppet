@@ -2,7 +2,7 @@
 # import pandas as pd
 from typing import Any, List
 
-from discord import User, Emoji
+from discord import User
 from discord_slash import cog_ext, SlashContext, ComponentContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
@@ -68,18 +68,8 @@ class MuseumCogs(AssignableCogs):
             museum_filter = MuseumDataFilter(user)
 
         # Rarities selection
-        rarities_options = []
-        for rarity in range(1, 7):
-            rarities_options.append(create_select_option(f"{constants.RARITIES_LABELS[rarity]}",
-                                                         value=f"{rarity}",
-                                                         emoji=f"{constants.RARITIES_EMOJI[rarity]}"))
-
-        rarity_select = create_select(options=rarities_options,
-                                      placeholder="Select the rarity you want to apply",
-                                      custom_id="rarity_select",
-                                      max_values=6)
         rarity_select_line = ViewReactionsLine()
-        rarity_select_line.add_reaction(Reaction(button=rarity_select, callback=self.rarity_selected))
+        rarity_select_line.add_reaction(Reaction(button=constants.RARITY_SELECT, callback=self.rarity_selected))
 
         # Affiliation selection
         affiliation_select = self.generate_affiliations_select(museum_filter)

@@ -158,10 +158,25 @@ class OwnersCharacterListEmbedRender(CharacterEmbedRender):
 
     def generate_render(self, data: List[Character] = None, offset: int = 0, starting_index: int = 0) -> Embed:
         embed = super().generate_render(data, offset, starting_index)
-        if self.owners is not None:
+        if self.owners is not None and self.owners[offset].data is not None:
             embed.add_field(name=self.owners[offset].title,
                             value=self.owners[offset].data,
                             inline=self.owners[offset].inline)
+        return embed
+
+
+class OwnersAndFavoritesCharacterListEmbedRender(OwnersCharacterListEmbedRender):
+
+    def __init__(self, owners: List[Fields], favorites: List[Fields], msg_content: str = None):
+        super().__init__(owners=owners, msg_content=msg_content)
+        self.favorites = favorites
+
+    def generate_render(self, data: List[Character] = None, offset: int = 0, starting_index: int = 0) -> Embed:
+        embed = super().generate_render(data, offset, starting_index)
+        if self.favorites is not None and self.favorites[offset].data is not None:
+            embed.add_field(name=self.favorites[offset].title,
+                            value=self.favorites[offset].data,
+                            inline=self.favorites[offset].inline)
         return embed
 
 
@@ -236,11 +251,17 @@ class MuseumCharacterOwnershipListEmbedRender(ListEmbedRender):
         # Icon url
         icon_url = constants.RARITIES_URL.format(constants.RARITIES_HEXA[character.rarity])
 
+        # Author name
+        if data.is_locked:
+            character_name = f"{constants.LOCK_EMOJI} {character.name}"
+        else:
+            character_name = f"{character.name}"
+
         # Author
         if character.url_link is not None:
-            embed.set_author(name=character.name, icon_url=icon_url, url=character.url_link)
+            embed.set_author(name=character_name, icon_url=icon_url, url=character.url_link)
         else:
-            embed.set_author(name=character.name, icon_url=icon_url)
+            embed.set_author(name=character_name, icon_url=icon_url)
 
         # Footer
         footer_text = f"Rarity: {constants.RARITIES_LABELS[character.rarity]} | Affiliation(s): " \

@@ -2,7 +2,7 @@ import unicodedata
 
 from discord import Colour
 from discord_slash import ButtonStyle
-from discord_slash.utils.manage_components import create_button
+from discord_slash.utils.manage_components import create_button, create_select_option, create_select
 
 COIN_NAME = "biteCoin"
 
@@ -70,3 +70,13 @@ VALIDATE_BUTTON = create_button(style=ButtonStyle.green, label="Validate", custo
 CANCEL_BUTTON = create_button(style=ButtonStyle.red, label="Cancel", custom_id="cancel", emoji=RED_CROSS_EMOJI)
 CHANGE_OWNER_BUTTON = create_button(style=ButtonStyle.blue, label="Change owner", custom_id="change_owner",
                                     emoji=ROTATE_EMOJI)
+
+# SELECTS
+RARITY_SELECT = create_select(options=[create_select_option(f"{RARITIES_LABELS[index]}",
+                                                            value=f"{index}",
+                                                            emoji=f"{RARITIES_EMOJI[index]}")
+                                       for index in range(1, 7)],
+                              placeholder="Select the rarity you want to apply",
+                              custom_id="rarity_select",
+                              max_values=6)
+

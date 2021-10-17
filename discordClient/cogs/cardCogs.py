@@ -3,18 +3,16 @@ import uuid
 from itertools import groupby
 
 from discord import Member, Embed
-from discord_slash import cog_ext, SlashContext, ComponentContext
+from discord_slash import cog_ext, SlashContext
 from discord_slash.utils.manage_commands import create_option
-from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
-from discord_slash.model import ButtonStyle
 from peewee import fn
 
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, \
     CharacterFavorites
-from discordClient.views import PageView, Reaction, Fields, CharacterListEmbedRender, OwnersCharacterListEmbedRender, \
-    MuseumCharacterOwnershipListEmbedRender, ViewReactionsLine
+from discordClient.views import PageView, Reaction, Fields, CharacterListEmbedRender, \
+    MuseumCharacterOwnershipListEmbedRender, ViewReactionsLine, OwnersAndFavoritesCharacterListEmbedRender
 
 
 class CardCogs(AssignableCogs):
@@ -144,7 +142,8 @@ class CardCogs(AssignableCogs):
                      .order_by(Character.rarity.desc()))
 
             if len(query) > 0:
-                characters_field = []
+                owner_fields = []
+                favorite_fields = []
                 for character in query:
                     # Create the "Owned by" fields in the search
                     mutual_owners = []
@@ -152,30 +151,43 @@ class CardCogs(AssignableCogs):
                         for owner in character.owned_by:
                             if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_owners:
                                 mutual_owners.append(owner.discord_user_id)
-                    character_field = Fields(title="Owners of the card",
-                                             data=CardOwnerFieldData())
+                    if len(mutual_owners) > 0:
+                        character_field = Fields(title="Owners",
+                                                 data=CardOwnerFieldData())
+                    else:
+                        character_field = Fields(title="Owners",
+                                                 data=None)
 
                     # Create the "Favorited by" fields in the search
                     mutual_favorites = []
                     if len(character.favorited_by) > 0:
                         for owner in character.favorited_by:
-                            if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_owners:
+                            if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_favorites:
                                 mutual_favorites.append(owner.discord_user_id)
-                    favorited_field = Fields(title="Favorited by",
-                                             data=CardOwnerFieldData()) # Marche pas ici
+                    if len(mutual_favorites) > 0:
+                        favorite_field = Fields(title=f"{constants.HEART_EMOJI} Favorited by",
+                                                data=CardFavoriteFieldData())
+                    else:
+                        favorite_field = Fields(title=f"{constants.HEART_EMOJI} Favorited by",
+                                                data=None)
 
+                    # Fill the fields with actual users
                     for mutual_owner in mutual_owners:
                         character_field.data.update_owner(self.bot.get_user(mutual_owner))
                     for mutual_favorite in mutual_favorites:
-                        favorited_field.data.update_owner(self.bot.get_user(mutual_favorite))
-                    characters_field.append([character_field, favorited_field])
+                        favorite_field.data.update_owner(self.bot.get_user(mutual_favorite))
+
+                    # Push the fields to the list
+                    owner_fields.append(character_field)
+                    favorite_fields.append(favorite_field)
 
                 # First character displaying
                 actions_line = ViewReactionsLine()
                 actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=favorite_card))
                 actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
-                search_menu_renderer = OwnersCharacterListEmbedRender(msg_content=f"Found {query.count()} result(s).",
-                                                                      owners=characters_field)
+                search_menu_renderer = OwnersAndFavoritesCharacterListEmbedRender(
+                    msg_content=f"Found {query.count()} result(s).",
+                    owners=owner_fields, favorites=favorite_fields)
                 search_menu = PageView(puppet_bot=self.bot,
                                        elements_to_display=query,
                                        render=search_menu_renderer,
@@ -217,6 +229,13 @@ class CardOwnerFieldData:
             self.owners.remove(owner)
         else:
             self.owners.append(owner)
+
+    def has_data(self):
+        return len(self.owners) > 0
+
+
+class CardFavoriteFieldData(CardOwnerFieldData):
+    pass
 
 
 async def favorite_card(**t):

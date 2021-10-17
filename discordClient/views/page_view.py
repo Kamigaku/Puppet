@@ -2,7 +2,6 @@ from typing import Any, List
 import math
 
 from discord import User, Message
-from discord.abc import Messageable
 from discord_slash import ComponentMessage
 from discord_slash.context import InteractionContext, ComponentContext
 from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
@@ -332,7 +331,8 @@ class PageViewSelectElement(PageView):
         # Create the elements selection
         elements_select_options = []
         for i in range(0, elements_per_page):
-            elements_select_options.append(create_select_option(f"{elements_to_display[i]}", value=f"{i}"))
+            if i < len(elements_to_display):
+                elements_select_options.append(create_select_option(f"{elements_to_display[i]}", value=f"{i}"))
 
         disabled = len(elements_select_options) == 0  # if we don't have elements we disabled the selection
         if disabled:
