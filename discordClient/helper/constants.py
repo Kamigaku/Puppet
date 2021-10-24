@@ -79,4 +79,3 @@ RARITY_SELECT = create_select(options=[create_select_option(f"{RARITIES_LABELS[i
                               placeholder="Select the rarity you want to apply",
                               custom_id="rarity_select",
                               max_values=6)
-

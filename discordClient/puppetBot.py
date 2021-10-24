@@ -1,7 +1,8 @@
 import logging
+import typing
 
+from discord import Intents, RawMessageDeleteEvent, User
 from discord.ext.commands import Bot
-from discord import Intents, RawMessageDeleteEvent
 from discord_slash import SlashCommand, ComponentContext
 
 from discordClient.cogs.cardCogs import CardCogs
@@ -14,14 +15,20 @@ from discordClient.helper.listener import ReactionListener, DeleteListener
 
 class PuppetBot(Bot):
 
-    def __init__(self, commands_prefix: str):
+    def __init__(self, commands_prefix: str, debug_mode: bool = False, sync_commands: bool = False):
         intents = Intents.default()
         intents.members = True
         intents.presences = True
         intents.reactions = True
         super().__init__(command_prefix=commands_prefix, intents=intents,
                          self_bot=True)
-        self.slash = SlashCommand(self, sync_commands=True)
+        if not debug_mode:
+            self.slash = SlashCommand(self, sync_commands=sync_commands)
+        else:
+
+            # self.slash = SlashCommand(self, sync_commands=sync_commands, delete_from_unused_guilds=False,
+            #                           debug_guild=877098506211442719)
+            self.slash = SlashCommand(self, sync_commands=sync_commands, debug_guild=877098506211442719)
         self.reaction_listeners = {}
         self.delete_listeners = {}
 
@@ -29,6 +36,10 @@ class PuppetBot(Bot):
         handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 
         logger = logging.getLogger('discord')
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        logger = logging.getLogger('discord_slash')
         logger.setLevel(logging.DEBUG)
         logger.addHandler(handler)
 
@@ -69,6 +80,16 @@ class PuppetBot(Bot):
         self.logger.info(f"Disposing the message id {message_id}")
         self.delete_listeners[message_id].dispose()
         self.delete_listeners.pop(message_id)
+
+    @staticmethod
+    def get_common_users(user: User) -> typing.List:
+        mutual_guilds = user.mutual_guilds
+        active_ids = []
+        for mutual_guild in mutual_guilds:
+            for member in mutual_guild.members:
+                if member.id not in active_ids:
+                    active_ids.append(member)
+        return active_ids
 
     ################################
     #       LISTENERS BOT          #

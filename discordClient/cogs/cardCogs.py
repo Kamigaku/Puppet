@@ -3,16 +3,16 @@ import uuid
 from itertools import groupby
 
 from discord import Member, Embed
-from discord_slash import cog_ext, SlashContext
-from discord_slash.utils.manage_commands import create_option
+from discord_slash import cog_ext, SlashContext, SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_option, create_choice
 from peewee import fn
 
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, \
     CharacterFavorites
-from discordClient.views import PageView, Reaction, Fields, CharacterListEmbedRender, \
-    MuseumCharacterOwnershipListEmbedRender, ViewReactionsLine, OwnersAndFavoritesCharacterListEmbedRender
+from discordClient.views import PageView, Reaction, CharacterListEmbedRender, ViewReactionsLine, \
+    CharactersEmbedRender, CharactersOwnershipEmbedRender
 
 
 class CardCogs(AssignableCogs):
@@ -99,7 +99,8 @@ class CardCogs(AssignableCogs):
                 actions_line.add_reaction(Reaction(button=constants.LOCK_BUTTON, callback=lock_card))
                 actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
 
-                character_renderer = MuseumCharacterOwnershipListEmbedRender()
+                common_users = self.bot.get_common_users(ctx.author)
+                character_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
                 characters_view = PageView(puppet_bot=self.bot,
                                            elements_to_display=characters_owned_models,
                                            lines=[actions_line],
@@ -119,75 +120,57 @@ class CardCogs(AssignableCogs):
                        options=[
                            create_option(
                                name="name",
-                               description="Specify a search value. To specify space in the name, add \" before and "
-                                           "after your research.",
-                               option_type=3,
-                               required=True
+                               description="Specify a characters' name value.",
+                               option_type=SlashCommandOptionType.STRING,
+                               required=False
+                           ),
+                           create_option(
+                               name="affiliation",
+                               description="Specify an affiliation's name value.",
+                               option_type=SlashCommandOptionType.STRING,
+                               required=False
+                           ),
+                           create_option(
+                               name="rarity",
+                               description="Specify the rarity's value",
+                               option_type=SlashCommandOptionType.INTEGER,
+                               choices=[create_choice(name=f"{constants.RARITIES_LABELS[index]}",
+                                                      value=index)
+                                        for index in range(1, 7)],
+                               required=False
                            )
                        ])
-    async def search(self, ctx: SlashContext, name: str):
-        if len(name) < 3:
-            await ctx.send("The research need to have more than 2 characters.", delete_after=30)
+    async def search(self, ctx: SlashContext, name: str = None, affiliation: str = None, rarity: int = None):
+        if name is None and affiliation is None and rarity is None:
+            await ctx.send(content="The research needs to have at least filter value.",
+                           hidden=True)
+        if name is not None and len(name) < 3:
+            await ctx.send(content="The 'name' parameter needs to have more than 2 characters.",
+                           hidden=True)
+        if affiliation is not None and len(affiliation) < 3:
+            await ctx.send(content="The 'affiliation' parameter needs to have more than 2 characters.",
+                           hidden=True)
         else:
-            mutual_guilds = ctx.author.mutual_guilds
-            active_ids = []
-            for mutual_guild in mutual_guilds:
-                for member in mutual_guild.members:
-                    if member.id not in active_ids:
-                        active_ids.append(member.id)
-
             query = (Character.select(Character.id, Character.name, Character.description, Character.image_link,
-                                      Character.rarity)
-                     .where(Character.name.contains(name))
-                     .order_by(Character.rarity.desc()))
+                                      Character.rarity))
+
+            if name is not None:
+                query = query.where(Character.name.contains(name))
+            if rarity is not None:
+                query = query.where(Character.rarity == rarity)
+            if affiliation is not None:
+                query = (query.join_from(Character, CharacterAffiliation)
+                         .join_from(CharacterAffiliation, Affiliation)
+                         .where(Affiliation.name.contains(affiliation)))
+            query = query.order_by(Character.rarity.desc())
 
             if len(query) > 0:
-                owner_fields = []
-                favorite_fields = []
-                for character in query:
-                    # Create the "Owned by" fields in the search
-                    mutual_owners = []
-                    if len(character.owned_by) > 0:
-                        for owner in character.owned_by:
-                            if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_owners:
-                                mutual_owners.append(owner.discord_user_id)
-                    if len(mutual_owners) > 0:
-                        character_field = Fields(title="Owners",
-                                                 data=CardOwnerFieldData())
-                    else:
-                        character_field = Fields(title="Owners",
-                                                 data=None)
-
-                    # Create the "Favorited by" fields in the search
-                    mutual_favorites = []
-                    if len(character.favorited_by) > 0:
-                        for owner in character.favorited_by:
-                            if owner.discord_user_id in active_ids and owner.discord_user_id not in mutual_favorites:
-                                mutual_favorites.append(owner.discord_user_id)
-                    if len(mutual_favorites) > 0:
-                        favorite_field = Fields(title=f"{constants.HEART_EMOJI} Favorited by",
-                                                data=CardFavoriteFieldData())
-                    else:
-                        favorite_field = Fields(title=f"{constants.HEART_EMOJI} Favorited by",
-                                                data=None)
-
-                    # Fill the fields with actual users
-                    for mutual_owner in mutual_owners:
-                        character_field.data.update_owner(self.bot.get_user(mutual_owner))
-                    for mutual_favorite in mutual_favorites:
-                        favorite_field.data.update_owner(self.bot.get_user(mutual_favorite))
-
-                    # Push the fields to the list
-                    owner_fields.append(character_field)
-                    favorite_fields.append(favorite_field)
-
                 # First character displaying
                 actions_line = ViewReactionsLine()
                 actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=favorite_card))
                 actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
-                search_menu_renderer = OwnersAndFavoritesCharacterListEmbedRender(
-                    msg_content=f"Found {query.count()} result(s).",
-                    owners=owner_fields, favorites=favorite_fields)
+                search_menu_renderer = CharactersEmbedRender(msg_content=f"Found {query.count()} result(s).",
+                                                             common_users=self.bot.get_common_users(ctx.author))
                 search_menu = PageView(puppet_bot=self.bot,
                                        elements_to_display=query,
                                        render=search_menu_renderer,
@@ -197,17 +180,6 @@ class CardCogs(AssignableCogs):
                 await search_menu.display_menu(ctx)
             else:
                 await ctx.send(f"No results has been found for the query \"{name}\".")
-
-    ################################
-    #       ERRORS HANDLING        #
-    ################################
-
-    # @cards_buy.error
-    # async def on_cards_buy_error(self, ctx: Context, error):
-    #     await ctx.send(f"{constants.RED_CROSS_EMOJI} An error has occurred during the buyout of your cards. "
-    #                    f"Please contact an admin.")
-    #     await ctx.send(f"{constants.RED_CROSS_EMOJI} Stack trace: {error}")
-    #     self.currently_opening_cards.remove(ctx.author.id)
 
 
 class CardOwnerFieldData:
@@ -234,15 +206,11 @@ class CardOwnerFieldData:
         return len(self.owners) > 0
 
 
-class CardFavoriteFieldData(CardOwnerFieldData):
-    pass
-
-
 async def favorite_card(**t):
     menu = t["menu"]
     user_that_interact = t["user_that_interact"]
     context = t["context"]
-    character_model = menu.retrieve_element(menu.offset)
+    character_model = menu.retrieve_element(menu.page)
     if type(character_model) is CharactersOwnership:
         character_model = character_model.character_id
     model, model_created = CharacterFavorites.get_or_create(character_id=character_model.id,
@@ -259,7 +227,7 @@ async def lock_card(**t):
     menu = t["menu"]
     user_that_interact = t["user_that_interact"]
     context = t["context"]
-    ownership_model = menu.retrieve_element(menu.offset)
+    ownership_model = menu.retrieve_element(menu.page)
     if user_that_interact.id == ownership_model.discord_user_id:
         new_state = ownership_model.lock()
         if new_state:
@@ -274,24 +242,24 @@ async def sell_card(**t):
     menu = t["menu"]
     user_that_interact = t["user_that_interact"]
     context = t["context"]
-    ownership_model = menu.retrieve_element(menu.offset)
+    ownership_model = menu.retrieve_element(menu.page)
     if user_that_interact.id == ownership_model.discord_user_id:
         price_sold = ownership_model.sell()
         if price_sold > 0:
             await user_that_interact.send(f"You have sold this card for {price_sold} {constants.COIN_NAME}.")
+            await context.defer(ignore=True)
         else:
             await context.send(f"You have already sold this card and cannot sell it again. "
                                f"If you think this is an error, please communicate to a moderator.", hidden=True)
     else:
         await context.send("You are not the owner of the card, you cannot sell it.", hidden=True)
-    await context.defer(ignore=True)
 
 
 async def report_card(**t):
     menu = t["menu"]
     user_that_interact = t["user_that_interact"]
     context = t["context"]
-    character_id = menu.retrieve_element(menu.offset).character_id
+    character_id = menu.retrieve_element(menu.page).character_id
     character = Character.get_by_id(character_id)
     embed = Embed()
     embed.title = f"{constants.REPORT_EMOJI} Report a card"

@@ -1,9 +1,9 @@
-from discord import User
 from discord import Embed, Message
-from peewee import DoesNotExist
+from discord import User
 from discord_slash import cog_ext, SlashContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option, create_choice
+from peewee import DoesNotExist
 
 from discordClient.cogs.abstract import BaseCogs
 from discordClient.helper import constants
@@ -88,30 +88,30 @@ class ReportCogs(BaseCogs):
                                option_type=SlashCommandOptionType.STRING,
                                required=True,
                                choices=[
-                                 create_choice(
-                                   name="Description incoherency",
-                                   value="description"
-                                 ),
-                                 create_choice(
-                                   name="Invalid image",
-                                   value="image"
-                                 ),
-                                 create_choice(
-                                   name="Invalid affiliation(s)",
-                                   value="affiliation"
-                                 ),
-                                 create_choice(
-                                   name="Invalid name",
-                                   value="name"
-                                 ),
-                                 create_choice(
-                                   name="Card incoherency",
-                                   value="card"
-                                 ),
-                                 create_choice(
-                                   name="Other report",
-                                   value="other"
-                                 )
+                                   create_choice(
+                                       name="Description incoherency",
+                                       value="description"
+                                   ),
+                                   create_choice(
+                                       name="Invalid image",
+                                       value="image"
+                                   ),
+                                   create_choice(
+                                       name="Invalid affiliation(s)",
+                                       value="affiliation"
+                                   ),
+                                   create_choice(
+                                       name="Invalid name",
+                                       value="name"
+                                   ),
+                                   create_choice(
+                                       name="Card incoherency",
+                                       value="card"
+                                   ),
+                                   create_choice(
+                                       name="Other report",
+                                       value="other"
+                                   )
                                ]
                            ),
                            create_option(

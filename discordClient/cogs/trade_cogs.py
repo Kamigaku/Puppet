@@ -1,15 +1,15 @@
 from discord import User
-from peewee import ModelSelect, fn
 from discord_slash import cog_ext, SlashContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
 from discord_slash.utils.manage_components import create_select_option, create_select
+from peewee import ModelSelect, fn
 
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Affiliation, CharacterAffiliation, CharactersOwnership, Character, Trade
 from discordClient.views import ViewWithReactions, Fields, Reaction, TradeRecapEmbedRender, \
-    TradeNumbersListEmbedRender, PageViewSelectElement, ViewReactionsLine, List
+    TradeCharactersListEmbedRender, PageViewSelectElement, ViewReactionsLine, List
 
 
 class TradeCogs(AssignableCogs):
@@ -57,8 +57,8 @@ class TradeCogs(AssignableCogs):
         query, elements_to_display = self.generate_request(ctx.author.id)
 
         # Trade menu - Selecting the characters to trade
-        trade_list_render = TradeNumbersListEmbedRender(menu_title="Summary of owned characters",
-                                                        current_owner=ctx.author)
+        trade_list_render = TradeCharactersListEmbedRender(menu_title="Summary of owned characters",
+                                                           current_owner=ctx.author)
         actions_line = ViewReactionsLine()
         actions_line.add_reaction(Reaction(button=constants.CHANGE_OWNER_BUTTON, callback=self.change_owner))
 
@@ -76,7 +76,7 @@ class TradeCogs(AssignableCogs):
                                           render=trade_list_render,
                                           elements_per_page=10,
                                           bound_to=ctx.author,
-                                          #lines=[actions_line, rarity_select_line, affiliation_select_line],
+                                          # lines=[actions_line, rarity_select_line, affiliation_select_line],
                                           lines=[actions_line],
                                           callback_element_selection=self.update_trade_offer,
                                           delete_after=600)
@@ -146,8 +146,8 @@ class TradeCogs(AssignableCogs):
         query, elements_to_display = self.generate_request(trade_data.current_user.id)
         trade_data.request = query
 
-        trade_list_render = TradeNumbersListEmbedRender(menu_title="Summary of owned characters",
-                                                        current_owner=trade_data.current_user)
+        trade_list_render = TradeCharactersListEmbedRender(menu_title="Summary of owned characters",
+                                                           current_owner=trade_data.current_user)
         menu.update_datas(elements_to_display=query,
                           render=trade_list_render)
         await menu.update_menu(context=context)
@@ -238,9 +238,9 @@ class TradeCogs(AssignableCogs):
         query = (CharactersOwnership.select(CharactersOwnership.id, CharactersOwnership.discord_user_id,
                                             Character.name, Character.category, Character.rarity, Character.id,
                                             fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
-                                    .join_from(CharactersOwnership, Character)
-                                    .join_from(Character, CharacterAffiliation)
-                                    .join_from(CharacterAffiliation, Affiliation))
+                 .join_from(CharactersOwnership, Character)
+                 .join_from(Character, CharacterAffiliation)
+                 .join_from(CharacterAffiliation, Affiliation))
 
         if rarity is not None:
             query = query.where(Character.rarity << rarity)
@@ -250,8 +250,8 @@ class TradeCogs(AssignableCogs):
         query = (query.where((CharactersOwnership.discord_user_id == user_id) &
                              (CharactersOwnership.is_sold == False) &
                              (CharactersOwnership.is_locked == False))
-                      .group_by(CharactersOwnership.id)
-                      .order_by(Character.rarity.desc(), Character.name.asc()))
+                 .group_by(CharactersOwnership.id)
+                 .order_by(Character.rarity.desc(), Character.name.asc()))
 
         elements_to_display = []
         for ownership in query:

@@ -1,4 +1,5 @@
 from playhouse.migrate import *
+
 from discordClient.dal import dbContext
 
 migrator = SqliteMigrator(dbContext.DbContext().sqliteConnection)

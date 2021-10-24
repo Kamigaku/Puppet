@@ -1,6 +1,8 @@
+import asyncio
+
+from discord import Status
 from discord.ext import tasks
 from discord.user import User
-from discord import Status
 from discord_slash import cog_ext, SlashContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
@@ -23,7 +25,8 @@ class EconomyCogs(BaseCogs):
                                name="discord_user",
                                description="Specify the user that will receive the money",
                                option_type=SlashCommandOptionType.USER,
-                               required=True
+                               required=True,
+                               choices=None
                            ),
                            create_option(
                                name="amount",
@@ -87,3 +90,8 @@ class EconomyCogs(BaseCogs):
                     economy_model, model_created = Economy.get_or_create(discord_user_id=member.id)
                     economy_model.add_amount(amount)
         self.bot.logger.info("End of salary distribution.")
+
+    @distribute_salary.before_loop
+    async def before_distribute_salary(self):
+        await self.bot.wait_until_ready()
+        await asyncio.sleep(600)

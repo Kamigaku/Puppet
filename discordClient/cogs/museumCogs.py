@@ -13,7 +13,7 @@ from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Character, Affiliation, fn, CharacterAffiliation, CharactersOwnership
 from discordClient.views import Reaction, PageView, MuseumCharacterListEmbedRender, \
-    MuseumCharacterOwnershipListEmbedRender, ViewReactionsLine, ViewWithReactions, PageViewSelectElement
+    ViewReactionsLine, ViewWithReactions, PageViewSelectElement, CharactersOwnershipEmbedRender
 
 
 class MuseumDataFilter:
@@ -82,12 +82,12 @@ class MuseumCogs(AssignableCogs):
 
         # Query
         query = (Character.select(Character, fn.Count(Character.id).alias('count'), CharactersOwnership.discord_user_id)
-                          .join_from(Character, CharactersOwnership,
-                                     on=(CharactersOwnership.character_id == Character.id))
-                          .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
-                                 (CharactersOwnership.is_sold == False))
-                          .group_by(Character.id)
-                          .order_by(Character.name))
+                 .join_from(Character, CharactersOwnership,
+                            on=(CharactersOwnership.character_id == Character.id))
+                 .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                        (CharactersOwnership.is_sold == False))
+                 .group_by(Character.id)
+                 .order_by(Character.name))
 
         category_menu = PageViewSelectElement(puppet_bot=self.bot,
                                               elements_to_display=query,
@@ -211,12 +211,13 @@ class MuseumCogs(AssignableCogs):
                                 menu: PageViewSelectElement, selected_index: int, selected_element: Character):
         await context.defer(ignore=True)
         ownership_models = (CharactersOwnership.select()
-                                               .where((CharactersOwnership.character_id == selected_element.id) &
-                                                      (CharactersOwnership.discord_user_id ==
-                                                      selected_element.charactersownership.discord_user_id) &
-                                                      (CharactersOwnership.is_sold == False)))
+                            .where((CharactersOwnership.character_id == selected_element.id) &
+                                   (CharactersOwnership.discord_user_id ==
+                                    selected_element.charactersownership.discord_user_id) &
+                                   (CharactersOwnership.is_sold == False)))
 
-        characters_renderer = MuseumCharacterOwnershipListEmbedRender()
+        common_users = self.bot.get_common_users(menu.get_hidden_data().owner)
+        characters_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
 
         actions_line = ViewReactionsLine()
         if menu.get_hidden_data().owner.id == context.author_id:

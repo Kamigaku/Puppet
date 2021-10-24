@@ -2,7 +2,6 @@ from peewee import Model, TextField, ModelBase
 
 from discordClient.dal import DbContext
 
-
 dbContext = DbContext()
 
 
@@ -16,7 +15,6 @@ class MetaBaseModel(ModelBase):
 
 
 class BaseModel(Model, metaclass=MetaBaseModel):
-
     class Meta:
         database = dbContext.sqliteConnection
 

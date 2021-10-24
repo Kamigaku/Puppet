@@ -1,7 +1,7 @@
 from peewee import *
 
-from discordClient.model.meta_model import BaseModel
 from discordClient.model import CharactersOwnership
+from discordClient.model.meta_model import BaseModel
 
 
 class Trade(BaseModel):

@@ -30,5 +30,3 @@ class Report(BaseModel):
         self.has_been_treated = True
         self.action_done = action_done
         self.save()
-
-

@@ -1,15 +1,15 @@
-from typing import Any, List
 import math
+from typing import Any, List
 
 from discord import User, Message
 from discord_slash import ComponentMessage
 from discord_slash.context import InteractionContext, ComponentContext
-from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
 from discord_slash.model import ButtonStyle
+from discord_slash.utils.manage_components import create_button, create_actionrow, create_select, create_select_option
 
-from discordClient.helper import constants
 from discordClient.helper import Disposable, ReactionListener, DeleteListener
-from discordClient.views.renders import EmbedRender, ListEmbedRender
+from discordClient.helper import constants
+from discordClient.views.renders import EmbedRender
 
 
 class Reaction:
@@ -69,7 +69,7 @@ class ViewWithReactions(Disposable):
         for line in self.lines:
             actions_row.append(line.create_action_row())
         self.menu_msg = await context.send(content=self.render.generate_content(),
-                                           embed=self.render.generate_render(self.elements),
+                                           embed=self.render.generate_render(data=self.elements),
                                            components=actions_row)
 
         for line in self.lines:
@@ -92,11 +92,11 @@ class ViewWithReactions(Disposable):
             actions_row.append(line.create_action_row())
         if context is not None:
             await context.edit_origin(content=self.render.generate_content(),
-                                      embed=self.render.generate_render(self.elements),
+                                      embed=self.render.generate_render(data=self.elements),
                                       components=actions_row)
         else:
             await message.edit(content=self.render.generate_content(),
-                               embed=self.render.generate_render(self.elements),
+                               embed=self.render.generate_render(data=self.elements),
                                components=actions_row)
 
     def update_datas(self, elements_to_display: List = None, render: EmbedRender = None):
@@ -140,7 +140,7 @@ class ViewWithReactions(Disposable):
 
 class PageView(ViewWithReactions):
 
-    def __init__(self, puppet_bot, elements_to_display: List, render: ListEmbedRender,
+    def __init__(self, puppet_bot, elements_to_display: List, render: EmbedRender,
                  bound_to: User = None, lines: List[ViewReactionsLine] = [],
                  delete_after: int = None,
                  callback_prev=None, callback_next=None, callback_select=None,
@@ -194,17 +194,19 @@ class PageView(ViewWithReactions):
         self.callback_prev = callback_prev
         self.callback_next = callback_next
         self.callback_select = callback_select
-        self.offset = 0
+        self.page = 0
 
     async def display_menu(self, context: InteractionContext) -> Message:
         if self.elements_per_page > 1:
-            elements_to_display = self.elements[self.offset * self.elements_per_page:
-                                                (self.offset + 1) * self.elements_per_page]
+            elements_to_display = self.elements[self.page * self.elements_per_page:
+                                                (self.page + 1) * self.elements_per_page]
         else:
-            elements_to_display = self.elements[self.offset]
+            elements_to_display = self.elements[self.page]
 
         content = self.render.generate_content()
-        embed = self.render.generate_render(elements_to_display, self.offset, self.offset * self.elements_per_page)
+        embed = self.render.generate_render(data=elements_to_display,
+                                            page=self.page,
+                                            starting_index=(self.page * self.elements_per_page))
         actions_row = self.generate_actions_row()
 
         self.menu_msg = await context.send(content=content, embed=embed, components=actions_row)
@@ -225,17 +227,21 @@ class PageView(ViewWithReactions):
             return
 
         if self.elements_per_page > 1:
-            elements_to_display = self.elements[self.offset * self.elements_per_page:
-                                                (self.offset + 1) * self.elements_per_page]
+            elements_to_display = self.elements[self.page * self.elements_per_page:
+                                                (self.page + 1) * self.elements_per_page]
         else:
-            elements_to_display = self.elements[self.offset]
+            elements_to_display = self.elements[self.page]
+
+        embed = self.render.generate_render(data=elements_to_display,
+                                            page=self.page,
+                                            starting_index=(self.page * self.elements_per_page))
 
         for line in self.lines:
             reaction = line.retrieve_button("page_select")
             if reaction is not None:
                 page_select_options = []
                 max_number_pages = math.ceil(len(self.elements) / self.elements_per_page) + 1
-                starting_value = max(self.offset - 12, 0)
+                starting_value = max(self.page - 12, 0)
                 for i in range(1, 26):
                     if i + starting_value < max_number_pages:
                         page_select_options.append(create_select_option(f"Page #{i + starting_value}",
@@ -254,8 +260,6 @@ class PageView(ViewWithReactions):
 
         # Edit the UI
         content = self.render.generate_content()
-        embed = self.render.generate_render(elements_to_display, self.offset, self.offset * self.elements_per_page)
-
         components = self.generate_actions_row()
 
         if context is not None:
@@ -269,12 +273,12 @@ class PageView(ViewWithReactions):
                              render=render)
         if elements_per_page is not None:
             self.elements_per_page = elements_per_page
-        self.offset = 0
+        self.page = 0
 
     async def next_page(self, **t):
-        self.offset += 1
-        if self.offset * self.elements_per_page >= len(self.elements):
-            self.offset -= 1
+        self.page += 1
+        if self.page * self.elements_per_page >= len(self.elements):
+            self.page -= 1
             await t["context"].defer(ignore=True)
             return
         await self.update_menu(t["context"])
@@ -283,9 +287,9 @@ class PageView(ViewWithReactions):
                                user_that_interact=t["user_that_interact"])
 
     async def previous_page(self, **t):
-        self.offset -= 1
-        if self.offset < 0:
-            self.offset = 0
+        self.page -= 1
+        if self.page < 0:
+            self.page = 0
             await t["context"].defer(ignore=True)
             return
         await self.update_menu(t["context"])
@@ -295,8 +299,8 @@ class PageView(ViewWithReactions):
 
     async def select_page(self, **t):
         selected_option = int(t["context"].selected_options[0])
-        if selected_option != self.offset:
-            self.offset = selected_option
+        if selected_option != self.page:
+            self.page = selected_option
             await self.update_menu(t["context"])
             if self.callback_prev is not None:
                 self.callback_select(menu=t["menu"],
@@ -313,15 +317,15 @@ class PageView(ViewWithReactions):
         return self.retrieve_element(self.retrieve_index(offset))
 
     def retrieve_index(self, offset: int = 0) -> int:
-        return self.offset * self.elements_per_page + offset
+        return self.page * self.elements_per_page + offset
 
 
 class PageViewSelectElement(PageView):
 
-    def __init__(self, puppet_bot, elements_to_display: List, render: ListEmbedRender,
+    def __init__(self, puppet_bot, elements_to_display: List, render: EmbedRender,
                  bound_to: User = None, lines: List[ViewReactionsLine] = [],
                  delete_after: int = None,
-                 callback_prev=None, callback_next=None, callback_select=None,
+                 callback_prev=None, callback_next=None,
                  elements_per_page: int = 1,
                  callback_element_selection=None):
 
@@ -364,7 +368,7 @@ class PageViewSelectElement(PageView):
                 # Create the elements selection
                 elements_select_options = []
                 for i in range(0, self.elements_per_page):
-                    index = (self.offset * self.elements_per_page) + i
+                    index = (self.page * self.elements_per_page) + i
                     if index < len(self.elements):
                         elements_select_options.append(
                             create_select_option(f"{self.elements[index]}", value=f"{index}"))

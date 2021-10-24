@@ -1,1 +1,1 @@
-from .puppet import Puppet
+from .puppetBot import PuppetBot

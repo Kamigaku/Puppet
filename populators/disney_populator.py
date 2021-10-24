@@ -1,7 +1,7 @@
 import re
 
-from mwclient import Site
 import html2text
+from mwclient import Site
 from peewee import DoesNotExist
 from requests import HTTPError
 
@@ -196,15 +196,14 @@ if __name__ == '__main__':
                     try:
                         character_affiliation_model = (
                             CharacterAffiliation.select()
-                                                .where((CharacterAffiliation.character_id == character_model.get_id()) &
-                                                       (CharacterAffiliation.affiliation_id == affiliation_model.get_id()))
-                                                .get())
+                                .where((CharacterAffiliation.character_id == character_model.get_id()) &
+                                       (CharacterAffiliation.affiliation_id == affiliation_model.get_id()))
+                                .get())
                     except DoesNotExist:
                         character_affiliation_model = CharacterAffiliation(character_id=character_model.get_id(),
                                                                            affiliation_id=affiliation_model.get_id())
                         character_affiliation_model.save()
                     # DATABASE INSERTION - CharacterAffiliation
-
 
     print(f"Number of character {len(characters)}")
 
