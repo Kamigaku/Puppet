@@ -31,6 +31,7 @@ class TradeCogs(AssignableCogs):
                                required=True,
                            )
                        ])
+    @AssignableCogs.restricted
     async def trade(self, ctx: SlashContext, user: User):
         if user.id == ctx.author.id:
             await ctx.send("You cannot trade with yourself.")

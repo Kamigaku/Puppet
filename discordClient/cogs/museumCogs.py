@@ -56,6 +56,7 @@ class MuseumCogs(AssignableCogs):
                            create_option(name="user", description="The user to check",
                                          option_type=SlashCommandOptionType.USER, required=False)
                        ])
+    @AssignableCogs.restricted
     async def museum(self, ctx: SlashContext, user: User = None):
         character_categories = Character.select(Character.category).group_by(Character.category)
         categories = []

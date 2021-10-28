@@ -9,6 +9,7 @@ from discordClient.cogs.cardCogs import CardCogs
 from discordClient.cogs.economyCogs import EconomyCogs
 from discordClient.cogs.museumCogs import MuseumCogs
 from discordClient.cogs.report_cogs import ReportCogs
+from discordClient.cogs.restriction_cogs import RestrictionCogs
 from discordClient.cogs.trade_cogs import TradeCogs
 from discordClient.helper.listener import ReactionListener, DeleteListener
 
@@ -25,10 +26,8 @@ class PuppetBot(Bot):
         if not debug_mode:
             self.slash = SlashCommand(self, sync_commands=sync_commands)
         else:
-
-            # self.slash = SlashCommand(self, sync_commands=sync_commands, delete_from_unused_guilds=False,
-            #                           debug_guild=877098506211442719)
             self.slash = SlashCommand(self, sync_commands=sync_commands, debug_guild=877098506211442719)
+            #self.slash = SlashCommand(self, sync_commands=sync_commands, debug_guild=877098506211442719)
         self.reaction_listeners = {}
         self.delete_listeners = {}
 
@@ -61,6 +60,7 @@ class PuppetBot(Bot):
         self.add_cog(MuseumCogs(self))
         self.add_cog(ReportCogs(self))
         self.add_cog(TradeCogs(self))
+        self.add_cog(RestrictionCogs(self))
 
     def append_reaction_listener(self, reaction_listener: ReactionListener):
         if reaction_listener.message.id not in self.reaction_listeners:
@@ -116,3 +116,10 @@ class PuppetBot(Bot):
                             return
                     await reaction_listener.callback(context=ctx,
                                                      user_that_interact=user_that_reacted)
+
+    # async def on_slash_command(self, ctx: ComponentContext):
+    #     if isinstance(ctx.cog, AssignableCogs):
+    #         if not ctx.cog.check_assignation():
+    #             # await ctx.send(content="Your command have to be sent in the channel assigned to it.",
+    #             #                hidden=True)
+    #             return

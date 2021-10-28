@@ -35,6 +35,7 @@ class CardCogs(AssignableCogs):
                                required=False
                            )
                        ])
+    @AssignableCogs.restricted
     async def cards_buy(self, ctx: SlashContext, amount: int = 1):
         self.bot.logger.info(f"Beginning card distribution for user: {ctx.author.id}")
         if ctx.author.id not in self.currently_opening_cards:
@@ -140,16 +141,21 @@ class CardCogs(AssignableCogs):
                                required=False
                            )
                        ])
+    @AssignableCogs.restricted
     async def search(self, ctx: SlashContext, name: str = None, affiliation: str = None, rarity: int = None):
+        self.bot.logger.debug("Search command started")
         if name is None and affiliation is None and rarity is None:
-            await ctx.send(content="The research needs to have at least filter value.",
+            await ctx.send(content="The research needs to have at least one filter value.",
                            hidden=True)
+            return
         if name is not None and len(name) < 3:
             await ctx.send(content="The 'name' parameter needs to have more than 2 characters.",
                            hidden=True)
+            return
         if affiliation is not None and len(affiliation) < 3:
             await ctx.send(content="The 'affiliation' parameter needs to have more than 2 characters.",
                            hidden=True)
+            return
         else:
             query = (Character.select(Character.id, Character.name, Character.description, Character.image_link,
                                       Character.rarity))

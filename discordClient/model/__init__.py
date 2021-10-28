@@ -7,3 +7,4 @@ from .jointure_tables import *
 from .moderator import Moderator
 from .report import Report
 from .trade import Trade
+from .restriction import Restriction
