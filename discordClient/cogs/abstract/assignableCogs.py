@@ -22,6 +22,6 @@ class AssignableCogs(BaseCogs):
     def check_assignation(self, ctx: SlashContext) -> bool:
         try:
             Restriction.get(guild_id=ctx.guild_id, channel_id=ctx.channel_id, cog=self.cogs_name)
-            return True
-        except DoesNotExist:
             return False
+        except DoesNotExist:
+            return True
