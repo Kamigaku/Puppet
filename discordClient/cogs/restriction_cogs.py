@@ -1,4 +1,5 @@
 import discord
+from discord.ext.commands import has_permissions, CheckFailure
 from discord_slash import SlashCommandOptionType, SlashContext, cog_ext
 from discord_slash.utils.manage_commands import create_option, create_choice
 from peewee import DoesNotExist
@@ -13,7 +14,7 @@ class RestrictionCogs(BaseCogs):
         super().__init__(bot, "restriction")
 
     @cog_ext.cog_slash(name="restrict",
-                       description="Research a card whose name contains a specified value.",
+                       description="Restrict cog's command to a specific channel.",
                        options=[
                            create_option(
                                name="cog",
@@ -36,6 +37,11 @@ class RestrictionCogs(BaseCogs):
                            )
                        ])
     async def restrict(self, ctx: SlashContext, cog: str = None, channel: discord.abc.GuildChannel = None):
+        user_permissions = ctx.channel.permissions_for(ctx.author)
+        if not user_permissions.administrator:
+            await ctx.send(content=f"You're an average joe {ctx.author.mention}, you can't use this command.",
+                           hidden=True)
+            return
         if channel is None:
             try:
                 Restriction.get(guild_id=ctx.guild_id, cog=cog).delete_instance()
