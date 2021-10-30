@@ -5,12 +5,7 @@ from discord import Intents, RawMessageDeleteEvent, User
 from discord.ext.commands import Bot
 from discord_slash import SlashCommand, ComponentContext
 
-from discordClient.cogs.cardCogs import CardCogs
-from discordClient.cogs.economyCogs import EconomyCogs
-from discordClient.cogs.museumCogs import MuseumCogs
-from discordClient.cogs.report_cogs import ReportCogs
-from discordClient.cogs.restriction_cogs import RestrictionCogs
-from discordClient.cogs.trade_cogs import TradeCogs
+from discordClient.cogs import AnnouncementCogs, CardCogs, EconomyCogs, MuseumCogs, ReportCogs, TradeCogs, SettingsCogs
 from discordClient.helper.listener import ReactionListener, DeleteListener
 
 
@@ -60,7 +55,8 @@ class PuppetBot(Bot):
         self.add_cog(MuseumCogs(self))
         self.add_cog(ReportCogs(self))
         self.add_cog(TradeCogs(self))
-        self.add_cog(RestrictionCogs(self))
+        self.add_cog(AnnouncementCogs(self))
+        self.add_cog(SettingsCogs(self))
 
     def append_reaction_listener(self, reaction_listener: ReactionListener):
         if reaction_listener.message.id not in self.reaction_listeners:

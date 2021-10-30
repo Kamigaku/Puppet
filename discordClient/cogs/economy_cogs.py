@@ -71,6 +71,7 @@ class EconomyCogs(BaseCogs):
 
     @tasks.loop(minutes=10)
     async def distribute_salary(self):
+        # Il faudrait optimiser ici pour ne pas faire des itérations de get + update sur chaque users
         self.bot.logger.info("Starting salary distribution.")
         fetched_ids = []
         for guild in self.bot.guilds:

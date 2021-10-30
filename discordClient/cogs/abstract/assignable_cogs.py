@@ -1,8 +1,7 @@
 from discord_slash import SlashContext
-from peewee import DoesNotExist
 
 from discordClient.cogs.abstract import BaseCogs
-from discordClient.model import Restriction
+from discordClient.model import Settings
 
 
 class AssignableCogs(BaseCogs):
@@ -13,15 +12,12 @@ class AssignableCogs(BaseCogs):
     def restricted(func):
         async def wrapper(self, *args, **kwargs):
             if isinstance(self, AssignableCogs) and isinstance(args[0], SlashContext):
-                if not self.check_assignation(args[0]):
+                settings_model = Settings.get_or_none(guild_id=args[0].guild_id,
+                                                      cog=self.cogs_name)
+                if (settings_model is not None and
+                        settings_model.channel_id_restriction is not None and
+                        settings_model.channel_id_restriction != args[0].channel_id):
                     await args[0].send("The command needs to be send in the correct channel", hidden=True)
                     return None
             return await func(self, *args, **kwargs)
         return wrapper
-
-    def check_assignation(self, ctx: SlashContext) -> bool:
-        try:
-            Restriction.get(guild_id=ctx.guild_id, channel_id=ctx.channel_id, cog=self.cogs_name)
-            return False
-        except DoesNotExist:
-            return True

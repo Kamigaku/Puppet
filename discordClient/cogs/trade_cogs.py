@@ -5,7 +5,7 @@ from discord_slash.utils.manage_commands import create_option
 from discord_slash.utils.manage_components import create_select_option, create_select
 from peewee import ModelSelect, fn
 
-from discordClient.cogs.abstract import AssignableCogs
+from discordClient.cogs.abstract import AssignableCogs, BaseCogs
 from discordClient.helper import constants
 from discordClient.model import Affiliation, CharacterAffiliation, CharactersOwnership, Character, Trade
 from discordClient.views import ViewWithReactions, Fields, Reaction, TradeRecapEmbedRender, \
@@ -31,6 +31,7 @@ class TradeCogs(AssignableCogs):
                                required=True,
                            )
                        ])
+    @BaseCogs.disabled
     @AssignableCogs.restricted
     async def trade(self, ctx: SlashContext, user: User):
         if user.id == ctx.author.id:
