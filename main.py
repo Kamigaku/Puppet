@@ -14,7 +14,7 @@ def run_bot(api_key: str, prefix: str, debug: bool, sync_commands: bool):
 
 
 def make_migration(migration_file: str):
-    importlib.import_module(migration_file, package="migrations")
+    t = importlib.import_module(migration_file, package="migrations")
     print("Migration over!")
 
 

@@ -1,8 +1,9 @@
 import random
+import typing
 import uuid
 from itertools import groupby
 
-from discord import Member, Embed
+from discord import Embed
 from discord_slash import cog_ext, SlashContext, SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option, create_choice
 from peewee import fn
@@ -42,53 +43,17 @@ class CardCogs(AssignableCogs):
             self.currently_opening_cards.append(ctx.author.id)
             economy_model, mode_created = Economy.get_or_create(discord_user_id=ctx.author.id)
             if economy_model.remove_amount(20 * amount):  # Remove the money
-                booster_uuid = uuid.uuid4()
-                random.seed(booster_uuid.hex)
 
-                all_rarities = []
-                for _ in range(5 * amount):
-                    all_rarities.append(distribute_random_character([50, 25, 12.5, 9, 3, 0.5]))
-                all_rarities.sort()
-                all_rarities = [list(it) for k, it in groupby(all_rarities, lambda e: e)]
-                characters_and_ownerships = []
-                for rarity in all_rarities:
-                    rarity_character = (Character.select(Character.name, Character.category, Character.rarity,
-                                                         Character.id,
-                                                         fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
-                                        .join_from(Character, CharacterAffiliation)
-                                        .join_from(CharacterAffiliation, Affiliation)
-                                        .where(Character.rarity == rarity[0])
-                                        .group_by(Character.id))
-                    for _ in range(0, len(rarity)):
-                        character_generated = rarity_character[random.randrange(0, len(rarity_character) - 1)]
-                        character_and_ownership = {
-                            "ownership": CharactersOwnership(discord_user_id=ctx.author.id,
-                                                             character_id=character_generated.get_id(),
-                                                             message_id=ctx.interaction_id),
-                            "character": character_generated
-                        }
-                        characters_and_ownerships.append(character_and_ownership)
-
-                # Shuffle to prevent straight distribution
-                random.shuffle(characters_and_ownerships)
-
-                # Retrieve datas
-                ownerships_models = [cao["ownership"] for cao in characters_and_ownerships]
-                characters_generated = [cao["character"] for cao in characters_and_ownerships]
-
-                # Db insertion
-                CharactersOwnership.bulk_create(ownerships_models)
-
-                # Db retrieving
-                characters_owned_models = (CharactersOwnership.select()
-                                           .where(CharactersOwnership.message_id == ctx.interaction_id))
+                characters_owned_models, characters_models = distribute_cards_to(receiver_id=ctx.author.id,
+                                                                                 booster_amount=amount)
 
                 # Recap listing
                 page_renderer = CharacterListEmbedRender(msg_content=f"{ctx.author.mention}, you have dropped "
                                                                      f"{5 * amount} characters.",
-                                                         menu_title="Summary of dropped characters")
+                                                         menu_title="Summary of dropped characters",
+                                                         owner=ctx.author)
                 page_view = PageView(puppet_bot=self.bot,
-                                     elements_to_display=characters_generated,
+                                     elements_to_display=characters_models,
                                      elements_per_page=10,
                                      render=page_renderer)
                 await page_view.display_menu(ctx)
@@ -188,30 +153,6 @@ class CardCogs(AssignableCogs):
                 await ctx.send(f"No results has been found for the query \"{name}\".")
 
 
-class CardOwnerFieldData:
-
-    def __init__(self):
-        self.owners = []
-
-    def __str__(self):
-        if len(self.owners) == 0:
-            return "Nobody"
-        else:
-            character_list = ""
-            for owner in self.owners:
-                character_list += f"{owner.name}#{owner.discriminator}\n"
-            return character_list
-
-    def update_owner(self, owner: Member):
-        if owner in self.owners:
-            self.owners.remove(owner)
-        else:
-            self.owners.append(owner)
-
-    def has_data(self):
-        return len(self.owners) > 0
-
-
 async def favorite_card(**t):
     menu = t["menu"]
     user_that_interact = t["user_that_interact"]
@@ -299,6 +240,55 @@ async def report_card(**t):
                     inline=False)
     await user_that_interact.send(embed=embed)
     await context.defer(ignore=True)
+
+
+def distribute_cards_to(receiver_id: int, booster_amount: int) -> \
+        typing.Tuple[typing.List[CharactersOwnership], typing.List[Character]]:
+    booster_uuid = uuid.uuid4()
+    random.seed(booster_uuid.hex)
+
+    all_rarities = []
+    for _ in range(5 * booster_amount):
+        all_rarities.append(distribute_random_character([50, 25, 12.5, 9, 3, 0.5]))
+    all_rarities.sort()
+    all_rarities = [list(it) for k, it in groupby(all_rarities, lambda e: e)]
+    characters_and_ownerships = []
+    for rarity in all_rarities:
+        rarity_character = (Character.select(Character.name, Character.category, Character.rarity,
+                                             Character.id,
+                                             fn.GROUP_CONCAT(Affiliation.name, ", ").alias("affiliations"))
+                            .join_from(Character, CharacterAffiliation)
+                            .join_from(CharacterAffiliation, Affiliation)
+                            .where(Character.rarity == rarity[0])
+                            .group_by(Character.id))
+        for _ in range(0, len(rarity)):
+            character_generated = rarity_character[random.randrange(0, len(rarity_character) - 1)]
+            character_and_ownership = {
+                "ownership": CharactersOwnership(discord_user_id=receiver_id,
+                                                 character_id=character_generated.get_id()),
+                "character": character_generated
+            }
+            characters_and_ownerships.append(character_and_ownership)
+
+    # Shuffle to prevent straight distribution
+    random.shuffle(characters_and_ownerships)
+
+    # Retrieve datas
+    ownerships_models = [cao["ownership"] for cao in characters_and_ownerships]
+    characters_generated = [cao["character"] for cao in characters_and_ownerships]
+
+    # Db insertion
+    CharactersOwnership.bulk_create(ownerships_models)
+
+    # Db retrieving
+    ownerships_models_subquery = (CharactersOwnership.select()
+                                                     .order_by(CharactersOwnership.id.desc())
+                                                     .limit(5 * booster_amount))
+    ownerships_models = (CharactersOwnership.select()
+                                            .join(ownerships_models_subquery,
+                                                  on=(CharactersOwnership.id == ownerships_models_subquery.c.id))
+                                            .order_by(CharactersOwnership.id.asc()))
+    return ownerships_models, characters_generated
 
 
 def distribute_random_character(rarities):

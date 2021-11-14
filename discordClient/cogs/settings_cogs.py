@@ -25,7 +25,9 @@ class SettingsCogs(BaseCogs):
                                         create_choice(name="Trading",
                                                       value="trade"),
                                         create_choice(name="Announcement",
-                                                      value="announcement")],
+                                                      value="announcement"),
+                                        create_choice(name="Event",
+                                                      value="event")],
                                required=True
                            ),
                            create_option(

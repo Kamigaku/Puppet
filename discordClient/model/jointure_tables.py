@@ -1,6 +1,6 @@
 from peewee import *
 
-from discordClient.model import Economy, Affiliation, Character
+from discordClient.model import Economy, Affiliation, Character, Event
 from discordClient.model.meta_model import BaseModel
 
 
@@ -17,7 +17,6 @@ class CharacterAffiliation(BaseModel):
 class CharactersOwnership(BaseModel):
     discord_user_id = IntegerField()
     character_id = ForeignKeyField(Character, backref='owned_by')
-    message_id = IntegerField()
     is_sold = BooleanField(default=False)
     is_locked = BooleanField(default=False)
     dropped_by = IntegerField(default=discord_user_id)
@@ -44,3 +43,16 @@ class CharactersOwnership(BaseModel):
 
     def __str__(self):
         return f"{self.character_id}"
+
+
+class EventParticipants(BaseModel):
+    event_id = ForeignKeyField(Event, backref='participants')
+    discord_user_id = IntegerField()
+
+
+class EventRewards(BaseModel):
+    event_id = ForeignKeyField(Event, backref='rewards')
+    card_id = ForeignKeyField(Character, null=True)
+    money_amount = IntegerField(null=True)
+    booster_amount = IntegerField(null=True)
+

@@ -1,6 +1,7 @@
 import abc
 from typing import Any, List
 
+import discord.abc
 from discord import Embed, User
 
 from discordClient.helper import constants
@@ -28,7 +29,6 @@ class Render(metaclass=abc.ABCMeta):
 
 class EmbedRender(Render, metaclass=abc.ABCMeta):
 
-    @abc.abstractmethod
     def __init__(self, msg_content: str = None):
         self.msg_content = msg_content
 
@@ -47,9 +47,10 @@ class EmbedRender(Render, metaclass=abc.ABCMeta):
 # Represent a list of characters on one embed
 class CharacterListEmbedRender(EmbedRender):
 
-    def __init__(self, msg_content: str = None, menu_title: str = None):
+    def __init__(self, msg_content: str = None, menu_title: str = None, owner: discord.User = None):
         super().__init__(msg_content)
         self.menu_title = menu_title
+        self.owner = owner
 
     def generate_render(self, **t) -> Embed:
         # Retrieve variables
@@ -66,8 +67,13 @@ class CharacterListEmbedRender(EmbedRender):
         description = ""
         iteration = 1
         for character in data:
-            description += f"`{starting_index + iteration}`. {constants.RARITIES_EMOJI[character.rarity]} " \
-                           f"** [{constants.RARITIES_LABELS[character.rarity]}] {character.name} **\n"
+            description += f"`{starting_index + iteration}`."
+            description += f" {constants.RARITIES_EMOJI[character.rarity]} "
+            description += f"** [{constants.RARITIES_LABELS[character.rarity]}] {character.name} **"
+            if self.owner is not None:  # On vient afficher ici un petit coeur si le perso est dans les favoris
+                if self.owner.id in [favorite.discord_user_id for favorite in character.favorited_by]:
+                    description += f" {constants.HEART_EMOJI}"
+            description += "\n"
             iteration += 1
             description += ", ".join([affiliation.affiliation_id.name for affiliation in character.affiliated_to])
             description += "\n"
@@ -295,3 +301,24 @@ class TradeCharactersListEmbedRender(EmbedRender):
         embed.set_author(name=f"{self.current_owner.name}#{self.current_owner.discriminator}",
                          icon_url=self.current_owner.avatar_url)
         return embed
+
+
+#################################
+#       ANNOUNCEMENT COGS       #
+#################################
+
+class AnnouncementEmbedRender(EmbedRender):
+
+    def __init__(self, content: str, image_url: str = ""):
+        super().__init__(msg_content=f"{constants.REPORT_EMOJI} **__Puppet announcement__** {constants.REPORT_EMOJI}")
+        self.content = content
+        self.image_url = image_url
+
+    def generate_render(self, data: List[Fields] = None) -> Embed:
+        embed = Embed()
+
+        embed.set_author(name="Puppet announcement")
+        embed.set_thumbnail(url=self.image_url)
+        embed.description = f"{self.content}"
+        return embed
+

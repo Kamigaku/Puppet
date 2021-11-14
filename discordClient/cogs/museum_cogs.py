@@ -7,11 +7,11 @@ from discord_slash import cog_ext, SlashContext, ComponentContext
 from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
 from discord_slash.utils.manage_components import create_select_option, create_select
+from peewee import fn
 
-from discordClient.cogs import card_cogs
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
-from discordClient.model import Character, Affiliation, fn, CharacterAffiliation, CharactersOwnership
+from discordClient.model import Character, Affiliation, CharacterAffiliation, CharactersOwnership
 from discordClient.views import Reaction, PageView, MuseumCharacterListEmbedRender, \
     ViewReactionsLine, ViewWithReactions, PageViewSelectElement, CharactersOwnershipEmbedRender
 

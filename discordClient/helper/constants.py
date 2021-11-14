@@ -35,6 +35,9 @@ RED_CROSS_EMOJI = "\U0000274C"
 ROTATE_EMOJI = "\U0001F504"
 LOCK_EMOJI = "\U0001F512"
 HEART_EMOJI = "\U00002764"
+BELL_EMOJI = "\U0001F514"
+GIFT_EMOJI = "\U0001F381"
+PACKAGE_EMOJI = "\U0001F4E6"
 
 RARITIES_LABELS = ["E", "D", "C", "B", "A", "S", "SS"]
 RARITIES_COLORS = [Colour(0x9B9B9B), Colour(0xFFFFFF), Colour(0x69e15e), Colour(0x4ccfff), Colour(0xf0b71c),
@@ -70,6 +73,8 @@ VALIDATE_BUTTON = create_button(style=ButtonStyle.green, label="Validate", custo
 CANCEL_BUTTON = create_button(style=ButtonStyle.red, label="Cancel", custom_id="cancel", emoji=RED_CROSS_EMOJI)
 CHANGE_OWNER_BUTTON = create_button(style=ButtonStyle.blue, label="Change owner", custom_id="change_owner",
                                     emoji=ROTATE_EMOJI)
+PARTICIPATE_BUTTON = create_button(style=ButtonStyle.green, label="Participate", custom_id="participate",
+                                   emoji=CHECK_EMOJI)
 
 # SELECTS
 RARITY_SELECT = create_select(options=[create_select_option(f"{RARITIES_LABELS[index]}",

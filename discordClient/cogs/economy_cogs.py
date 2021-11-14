@@ -95,4 +95,7 @@ class EconomyCogs(BaseCogs):
     @distribute_salary.before_loop
     async def before_distribute_salary(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(600)
+        task = self.distribute_salary
+        await asyncio.sleep((task.hours * (60 * 60)) +
+                            (task.minutes * 60) +
+                            task.seconds)
