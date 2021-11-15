@@ -233,7 +233,7 @@ class EventCogs(BaseCogs):
                         CharactersOwnership.create(discord_user_id=winner.id,
                                                    character_id=reward.card_id)
                         await winner.send(f"You have been given the character "
-                                          f"{constants.RARITIES_EMOJI[reward.card_id.rarity]} " \
+                                          f"{constants.RARITIES_EMOJI[reward.card_id.rarity]} "
                                           f"** [{constants.RARITIES_LABELS[reward.card_id.rarity]}] "
                                           f"{reward.card_id.name} ** because you won a giveaway.")
                     if reward.money_amount is not None:  # we give money
@@ -254,7 +254,7 @@ class EventCogs(BaseCogs):
                                              elements_to_display=characters_models,
                                              elements_per_page=10,
                                              render=page_renderer)
-                        await page_view.display_menu(winner.dm_channel)
+                        await page_view.display_menu(winner)
 
                         # First character displaying
                         actions_line = ViewReactionsLine()
