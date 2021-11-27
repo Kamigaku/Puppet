@@ -65,7 +65,7 @@ class PuppetBot(Bot):
         self.add_cog(TradeCogs(self))
         self.add_cog(AnnouncementCogs(self))
         self.add_cog(SettingsCogs(self))
-        self.add_cog(EventCogs(self))
+        #self.add_cog(EventCogs(self))
 
     def append_reaction_listener(self, reaction_listener: ReactionListener):
         if reaction_listener.message.id not in self.reaction_listeners:

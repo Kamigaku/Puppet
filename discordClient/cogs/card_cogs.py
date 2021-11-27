@@ -1,3 +1,4 @@
+import datetime
 import random
 import typing
 import uuid
@@ -14,6 +15,8 @@ from discordClient.model import Economy, CharactersOwnership, Character, Affilia
     CharacterFavorites
 from discordClient.views import PageView, Reaction, CharacterListEmbedRender, ViewReactionsLine, \
     CharactersEmbedRender, CharactersOwnershipEmbedRender
+from discord_extensions import ScheduledEvent, ScheduledEventPrivacyLevel, ScheduledEventEntityType, \
+    ScheduledEventEntityMetadata
 
 
 class CardCogs(AssignableCogs):
@@ -151,6 +154,37 @@ class CardCogs(AssignableCogs):
                 await search_menu.display_menu(ctx)
             else:
                 await ctx.send(f"No results has been found for the query \"{name}\".")
+
+    @cog_ext.cog_slash(name="test",
+                       description="Test function for debug purpose")
+    async def search(self, ctx: SlashContext):
+        starting_time = datetime.datetime.now()
+        ending_time = starting_time + datetime.timedelta(minutes=90)
+        r = await ScheduledEvent.create(bot=self.bot,
+                                        guild_id=877098506211442719,
+                                        name="code event",
+                                        privacy_level=ScheduledEventPrivacyLevel.GUILD_ONLY,
+                                        scheduled_start_time=starting_time,
+                                        scheduled_end_time=ending_time,
+                                        entity_type=ScheduledEventEntityType.EXTERNAL,
+                                        entity_metadata=ScheduledEventEntityMetadata(location="dtc"))
+        p = await ScheduledEvent.fetch_all(bot=self.bot,
+                                           guild_id=877098506211442719,
+                                           with_user_count=True)
+        s = await ScheduledEvent.fetch(bot=self.bot,
+                                       guild_id=877098506211442719,
+                                       guild_scheduled_event_id=r.id)
+        t = await ScheduledEvent.edit(bot=self.bot,
+                                      guild_id=877098506211442719,
+                                      guild_scheduled_event_id=r.id,
+                                      name="UPDATED DEPUIS LE CODE")
+        z = await ScheduledEvent.fetch_users(bot=self.bot,
+                                             guild_id=877098506211442719,
+                                             guild_scheduled_event_id=r.id,
+                                             with_member=True)
+        u = await ScheduledEvent.delete(bot=self.bot,
+                                        guild_id=877098506211442719,
+                                        guild_scheduled_event_id=r.id)
 
 
 async def favorite_card(**t):
