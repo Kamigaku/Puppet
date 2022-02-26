@@ -1,11 +1,10 @@
 import asyncio
 
+import discord
 from discord import Status
 from discord.ext import tasks
-from discord.user import User
-from discord_slash import cog_ext, SlashContext
-from discord_slash.model import SlashCommandOptionType
-from discord_slash.utils.manage_commands import create_option
+from discord.ext.commands import slash_command, InteractionContext
+from discord.ext.commands.commands import ApplicationCommandField
 
 from discordClient.cogs.abstract import BaseCogs
 from discordClient.helper import constants
@@ -18,24 +17,14 @@ class EconomyCogs(BaseCogs):
         super().__init__(bot, "economy")
         self.distribute_salary.start()
 
-    @cog_ext.cog_slash(name="give",
-                       description="Send a specified amount of money to a desired user.",
-                       options=[
-                           create_option(
-                               name="discord_user",
-                               description="Specify the user that will receive the money",
-                               option_type=SlashCommandOptionType.USER,
-                               required=True,
-                               choices=None
-                           ),
-                           create_option(
-                               name="amount",
-                               description="Specify an amount of money you want to give.",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=True
-                           )
-                       ])
-    async def give_money(self, ctx: SlashContext, discord_user: User, amount: int):
+    @slash_command(description="Send a specified amount of money to a desired user.",
+                   is_global=True)
+    async def give(self, ctx: InteractionContext,
+                   discord_user: discord.User = ApplicationCommandField(description="Specify the user that will "
+                                                                                    "receive the money",
+                                                                        required=True),
+                   amount: int = ApplicationCommandField(description="Specify an amount of money you want to give.",
+                                                         required=True)):
         if amount > 0:
             economy_model, model_created = Economy.get_or_create(discord_user_id=ctx.author.id)
             if economy_model.give_money(discord_user.id, amount):
@@ -49,17 +38,10 @@ class EconomyCogs(BaseCogs):
             content_to_sender = "You cannot give a negative number."
         await ctx.send(content=content_to_sender, hidden=True)
 
-    @cog_ext.cog_slash(name="check",
-                       description="Check the amount of money in your wallet or in the wallet of someone else",
-                       options=[
-                           create_option(
-                               name="user",
-                               description="The user to check",
-                               option_type=SlashCommandOptionType.USER,
-                               required=False
-                           )
-                       ])
-    async def check_wallet(self, ctx: SlashContext, user: User = None):
+    @slash_command(description="Check the amount of money in your wallet or in the wallet of someone else",
+                   is_global=True)
+    async def check(self, ctx: InteractionContext,
+                    user: discord.User = ApplicationCommandField(description="The user you want to inspect")):
         if user is None:
             user_model, user_created = Economy.get_or_create(discord_user_id=ctx.author.id)
             content = f"You currently have {user_model.amount} {constants.COIN_NAME}."
@@ -67,7 +49,8 @@ class EconomyCogs(BaseCogs):
             user_model, user_created = Economy.get_or_create(discord_user_id=user.id)
             content = f"The user {user.name}#{user.discriminator} currently have " \
                       f"{user_model.amount} {constants.COIN_NAME}."
-        await ctx.send(content=content, hidden=True)
+        await ctx.send(content=content,
+                       ephemeral=True)
 
     @tasks.loop(minutes=10)
     async def distribute_salary(self):
@@ -99,3 +82,7 @@ class EconomyCogs(BaseCogs):
         await asyncio.sleep((task.hours * (60 * 60)) +
                             (task.minutes * 60) +
                             task.seconds)
+
+
+def setup(bot):
+    bot.add_cog(EconomyCogs(bot))

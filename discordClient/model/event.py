@@ -1,14 +1,13 @@
-from peewee import IntegerField, BooleanField, DateTimeField
-from playhouse.postgres_ext import DateTimeTZField
+from peewee import IntegerField, DateTimeField
 
 from discordClient.model.meta_model import BaseModel
 
 
 class Event(BaseModel):
     type = IntegerField()  # 0: giveaway card
-    target = IntegerField()  # Peut prendre deux valeurs: -1 si c'est un événement global ou l'id de la guild
-    duration = IntegerField()  # Durée en secondes
-    start_time = DateTimeField()  # Date de début de l'event
+    end_time = DateTimeField()  # Date de fin de l'event
     format = IntegerField()  # (A CONFIRMER) Format de l'event: 0: random, 1: premier arrivé, 2: enchere
-    status = IntegerField()  # 0: planifié, 1: en cours, 2: terminé, 3: annulé
-    started_by = IntegerField(default=None, null=True)  # match the id of the creator
+    status = IntegerField()  # 1: scheduled, 2: active, 3: completed, 4: canceled
+    number_of_winner = IntegerField(default=1)  # nombre de gagnant
+    guild_id = IntegerField(default=None)
+    event_id = IntegerField(null=True)

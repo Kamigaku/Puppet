@@ -1,58 +1,39 @@
-import datetime
-import math
-from datetime import timedelta, timezone
+from datetime import timedelta
 from typing import List
 
-from discord import Embed
+from discord import Embed, Colour
 from discord.abc import User
 
 from discordClient.helper import constants
+from discordClient.model.jointure_tables import EventRewards
 from discordClient.views import EmbedRender
 
 
 class GiveawayRender(EmbedRender):
 
     def generate_render(self, **t) -> Embed:
-        event = t["data"]
-        reward = event.rewards[0]
+        reward: EventRewards = t["data"]
         embed = Embed()
-        end_timestamp = math.floor((event.start_time.replace(tzinfo=timezone.utc) +
-                                    timedelta(minutes=event.duration)).timestamp())
+
+        reward_description = "Unknown description"
+        reward_colour = 0x000000
 
         if reward.card_id is not None:
             reward_description = f"{constants.RARITIES_EMOJI[reward.card_id.rarity]} " \
                                  f"** [{constants.RARITIES_LABELS[reward.card_id.rarity]}] {reward.card_id.name} **\n"
             reward_description += ", ".join(
                 [affiliation.affiliation_id.name for affiliation in reward.card_id.affiliated_to])
-            reward_header = "Card"
-            reward_colour = constants.RARITIES_COLORS[reward.card_id.rarity]
-            embed.set_thumbnail(url=event.rewards[0].card_id.image_link)
+            #reward_colour = Colour(constants.RARITIES_COLORS[reward.card_id.rarity])
+            embed.set_thumbnail(url=reward.card_id.image_link)
         elif reward.booster_amount is not None:
             reward_description = f"{constants.PACKAGE_EMOJI} {reward.booster_amount} booster(s)"
-            reward_header = "Booster"
-            reward_colour = 0xFFFF00
+            #reward_colour = 0xFFFF00
         elif reward.money_amount is not None:
             reward_description = f"{constants.SELL_EMOJI} {reward.money_amount} {constants.COIN_NAME}"
-            reward_header = "Money"
-            reward_colour = 0x0000FF
+            #reward_colour = 0x0000FF
 
-        if event.format == 0:  # raffle
-            embed.set_author(name=f"{constants.GIFT_EMOJI} {reward_header} raffle giveaway {constants.GIFT_EMOJI}")
-        elif event.format == 1:  # race
-            embed.set_author(name=f"{constants.GIFT_EMOJI} {reward_header} claim giveaway {constants.GIFT_EMOJI}")
-        elif event.format == 2:  # bid
-            embed.set_author(name=f"{constants.GIFT_EMOJI} {reward_header} bidding giveaway {constants.GIFT_EMOJI}")
-        description = f"A giveaway has started !\n\n"
-        if event.format == 1:
-            description += f"**Will ends <t:{end_timestamp}:R> if no one claims the price\n**"
-        else:
-            description += f"**Ends <t:{end_timestamp}:R>\n**"
-        description += "__The reward for this giveaway is:__\n\n"
-        description += reward_description
-        description += "\n\nPress the button below to participate!"
-        embed.timestamp = datetime.datetime.utcnow()
-        embed.description = description
-        embed.colour = reward_colour
+        embed.description = f"__The reward for this giveaway is:__\n\n {reward_description}"
+        #embed.colour = reward_colour
         return embed
 
 
@@ -72,7 +53,7 @@ class GiveawayResultRender(EmbedRender):
         reward_header = "NOT_IMPLEMENTED"
         if reward.card_id is not None:
             reward_header = "Card"
-            reward_colour = constants.RARITIES_COLORS[reward.card_id.rarity]
+            reward_colour = Colour(constants.RARITIES_COLORS[reward.card_id.rarity])
         elif reward.booster_amount is not None:
             reward_header = "Booster"
             reward_colour = 0xFFFF00
@@ -86,7 +67,7 @@ class GiveawayResultRender(EmbedRender):
             embed.set_author(name=f"{constants.BELL_EMOJI} {reward_header} race result {constants.BELL_EMOJI}")
         elif event.format == 2:  # bid
             embed.set_author(name=f"{constants.BELL_EMOJI} {reward_header} bidding result {constants.BELL_EMOJI}")
-        embed.timestamp = event.start_time + timedelta(minutes=event.duration)
+        #embed.timestamp = event.start_time + timedelta(minutes=event.duration)
         if len(self.winners) > 0:
             description = "A giveaway has ended...\r\n"
             description += f"There was **{self.participants_number} participants**.\r\n"

@@ -6,9 +6,7 @@ from discordClient import PuppetBot
 
 
 def run_bot(api_key: str, prefix: str, debug: bool, sync_commands: bool):
-    bot = PuppetBot(commands_prefix=f"{prefix}",
-                    debug_mode=debug,
-                    sync_commands=sync_commands)
+    bot = PuppetBot(commands_prefix=f"{prefix}",)
     bot.default_initialisation()
     bot.run(api_key)
 

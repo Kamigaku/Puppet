@@ -1,22 +1,20 @@
-import datetime
 import random
 import typing
 import uuid
+
+from discord.ui import Button
 from itertools import groupby
 
-from discord import Embed
-from discord_slash import cog_ext, SlashContext, SlashCommandOptionType
-from discord_slash.utils.manage_commands import create_option, create_choice
-from peewee import fn
+from peewee import fn, JOIN
 
+from discord.ext.commands import slash_command, ApplicationCommandField, InteractionContext
 from discordClient.cogs.abstract import AssignableCogs
 from discordClient.helper import constants
 from discordClient.model import Economy, CharactersOwnership, Character, Affiliation, CharacterAffiliation, \
     CharacterFavorites
-from discordClient.views import PageView, Reaction, CharacterListEmbedRender, ViewReactionsLine, \
-    CharactersEmbedRender, CharactersOwnershipEmbedRender
-from discord_extensions import ScheduledEvent, ScheduledEventPrivacyLevel, ScheduledEventEntityType, \
-    ScheduledEventEntityMetadata
+from discordClient.views import CharacterListEmbedRender, CharactersEmbedRender, CharactersOwnershipEmbedRender, \
+    SellButton, FavoriteButton, LockButton, ReportButton, WishlistRender
+from discordClient.views.view import PageView
 
 
 class CardCogs(AssignableCogs):
@@ -29,18 +27,16 @@ class CardCogs(AssignableCogs):
     #       COMMAND COGS           #
     ################################
 
-    @cog_ext.cog_slash(name="cards_buy",
-                       description="Allow you to buy one or multiple booster.",
-                       options=[
-                           create_option(
-                               name="amount",
-                               description="Specify an amount of booster you want to buy, the default value being 1.",
-                               option_type=4,
-                               required=False
-                           )
-                       ])
+    @slash_command(description="Allow you to buy one or multiple booster.",
+                   is_global=True,
+                   ephemeral=False)
     @AssignableCogs.restricted
-    async def cards_buy(self, ctx: SlashContext, amount: int = 1):
+    async def cards_buy(self,
+                        ctx: InteractionContext,
+                        amount: int = ApplicationCommandField(description="Specify an amount of booster you want to "
+                                                                          "buy, the default value being 1.",
+                                                              min_value=1,
+                                                              default_value=1)):
         self.bot.logger.info(f"Beginning card distribution for user: {ctx.author.id}")
         if ctx.author.id not in self.currently_opening_cards:
             self.currently_opening_cards.append(ctx.author.id)
@@ -59,23 +55,23 @@ class CardCogs(AssignableCogs):
                                      elements_to_display=characters_models,
                                      elements_per_page=10,
                                      render=page_renderer)
-                await page_view.display_menu(ctx)
+                await page_view.display_view(messageable=ctx)
 
                 # First character displaying
-                actions_line = ViewReactionsLine()
-                actions_line.add_reaction(Reaction(button=constants.SELL_BUTTON, callback=sell_card))
-                actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=favorite_card))
-                actions_line.add_reaction(Reaction(button=constants.LOCK_BUTTON, callback=lock_card))
-                actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
+                sell_button: Button = SellButton(row=2)
+                favorite_button: Button = FavoriteButton(row=2)
+                lock_button: Button = LockButton(row=2)
+                report_button: Button = ReportButton(row=2)
 
                 common_users = self.bot.get_common_users(ctx.author)
                 character_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
                 characters_view = PageView(puppet_bot=self.bot,
                                            elements_to_display=characters_owned_models,
-                                           lines=[actions_line],
                                            elements_per_page=1,
                                            render=character_renderer)
-                await characters_view.display_menu(ctx)
+                characters_view.add_items([sell_button, favorite_button, lock_button, report_button])
+                await characters_view.display_view(messageable=ctx,
+                                                   send_has_reply=False)
             else:
                 await ctx.author.send(f"You don't have enough {constants.COIN_NAME} to buy a booster.")
             self.currently_opening_cards.remove(ctx.author.id)
@@ -84,196 +80,189 @@ class CardCogs(AssignableCogs):
                                   "the moderators.")
         self.bot.logger.info(f"Card distribution over for user: {ctx.author.id}")
 
-    @cog_ext.cog_slash(name="search",
-                       description="Research a card whose name contains a specified value.",
-                       options=[
-                           create_option(
-                               name="name",
-                               description="Specify a characters' name value.",
-                               option_type=SlashCommandOptionType.STRING,
-                               required=False
-                           ),
-                           create_option(
-                               name="affiliation",
-                               description="Specify an affiliation's name value.",
-                               option_type=SlashCommandOptionType.STRING,
-                               required=False
-                           ),
-                           create_option(
-                               name="rarity",
-                               description="Specify the rarity's value",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               choices=[create_choice(name=f"{constants.RARITIES_LABELS[index]}",
-                                                      value=index)
-                                        for index in range(1, 7)],
-                               required=False
-                           )
-                       ])
+    @slash_command(description="Research a card whose name contains a specified value.",
+                   is_global=True,
+                   ephemeral=False)
     @AssignableCogs.restricted
-    async def search(self, ctx: SlashContext, name: str = None, affiliation: str = None, rarity: int = None):
+    async def search(self, ctx: InteractionContext,
+                     name: str = ApplicationCommandField(description="Specify a characters' name value."),
+                     affiliation: str = ApplicationCommandField(description="Specify an affiliation's name value."),
+                     rarity: int = ApplicationCommandField(description="Specify the rarity's value",
+                                                           values={f"{constants.RARITIES_LABELS[index]}": index
+                                                                   for index in range(1, 7)}),
+                     exact_term: str = ApplicationCommandField(description="If set to 'Exact term', the affiliation "
+                                                                           "specified in the request will be the "
+                                                                           "exact term searched.",
+                                                               values={"Exact term": "1",
+                                                                       "Contains": "0"},
+                                                               default_value="0")):
         self.bot.logger.debug("Search command started")
         if name is None and affiliation is None and rarity is None:
             await ctx.send(content="The research needs to have at least one filter value.",
-                           hidden=True)
+                           ephemeral=True)
             return
-        if name is not None and len(name) < 3:
-            await ctx.send(content="The 'name' parameter needs to have more than 2 characters.",
-                           hidden=True)
+        if name is not None and len(name) <= 0:
+            await ctx.send(content="The 'name' parameter cannot be empty.",
+                           ephemeral=True)
             return
-        if affiliation is not None and len(affiliation) < 3:
-            await ctx.send(content="The 'affiliation' parameter needs to have more than 2 characters.",
-                           hidden=True)
+        if affiliation is not None and len(affiliation) <= 0:
+            await ctx.send(content="The 'affiliation' parameter cannot be empty.",
+                           ephemeral=True)
             return
         else:
             query = (Character.select(Character.id, Character.name, Character.description, Character.image_link,
                                       Character.rarity))
 
             if name is not None:
-                query = query.where(Character.name.contains(name))
+                if exact_term == "1":
+                    query = query.where(Character.name == name)
+                else:
+                    query = query.where(Character.name.contains(name))
             if rarity is not None:
                 query = query.where(Character.rarity == rarity)
             if affiliation is not None:
-                query = (query.join_from(Character, CharacterAffiliation)
-                         .join_from(CharacterAffiliation, Affiliation)
-                         .where(Affiliation.name.contains(affiliation)))
+                if exact_term == "1":
+                    query = (query.join_from(Character, CharacterAffiliation)
+                             .join_from(CharacterAffiliation, Affiliation)
+                             .where(Affiliation.name == affiliation))
+                else:
+                    query = (query.join_from(Character, CharacterAffiliation)
+                             .join_from(CharacterAffiliation, Affiliation)
+                             .where(Affiliation.name.contains(affiliation)))
             query = query.order_by(Character.rarity.desc())
 
             if len(query) > 0:
+                # Recap listing
+                page_renderer = CharacterListEmbedRender(msg_content=f"Found {query.count()} result(s).",
+                                                         menu_title="Summary of found characters",
+                                                         owner=ctx.author)
+                page_view = PageView(puppet_bot=self.bot,
+                                     elements_to_display=query,
+                                     elements_per_page=10,
+                                     render=page_renderer)
+                await page_view.display_view(messageable=ctx)
+
                 # First character displaying
-                actions_line = ViewReactionsLine()
-                actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=favorite_card))
-                actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=report_card))
-                search_menu_renderer = CharactersEmbedRender(msg_content=f"Found {query.count()} result(s).",
-                                                             common_users=self.bot.get_common_users(ctx.author))
+                favorite_button: Button = FavoriteButton(row=2)
+                report_button: Button = ReportButton(row=2)
+                search_menu_renderer = CharactersEmbedRender(common_users=self.bot.get_common_users(ctx.author))
                 search_menu = PageView(puppet_bot=self.bot,
                                        elements_to_display=query,
                                        render=search_menu_renderer,
                                        bound_to=ctx.author,
-                                       lines=[actions_line],
                                        delete_after=600)
-                await search_menu.display_menu(ctx)
+                search_menu.add_items([favorite_button, report_button])
+                await search_menu.display_view(messageable=ctx,
+                                               send_has_reply=False)
             else:
-                await ctx.send(f"No results has been found for the query \"{name}\".")
+                await ctx.send(content=f"No results has been found for the query \"{name}\".",
+                               ephemeral=True)
 
-    @cog_ext.cog_slash(name="test",
-                       description="Test function for debug purpose")
-    async def search(self, ctx: SlashContext):
-        starting_time = datetime.datetime.now()
-        ending_time = starting_time + datetime.timedelta(minutes=90)
-        r = await ScheduledEvent.create(bot=self.bot,
-                                        guild_id=877098506211442719,
-                                        name="code event",
-                                        privacy_level=ScheduledEventPrivacyLevel.GUILD_ONLY,
-                                        scheduled_start_time=starting_time,
-                                        scheduled_end_time=ending_time,
-                                        entity_type=ScheduledEventEntityType.EXTERNAL,
-                                        entity_metadata=ScheduledEventEntityMetadata(location="dtc"))
-        p = await ScheduledEvent.fetch_all(bot=self.bot,
-                                           guild_id=877098506211442719,
-                                           with_user_count=True)
-        s = await ScheduledEvent.fetch(bot=self.bot,
-                                       guild_id=877098506211442719,
-                                       guild_scheduled_event_id=r.id)
-        t = await ScheduledEvent.edit(bot=self.bot,
-                                      guild_id=877098506211442719,
-                                      guild_scheduled_event_id=r.id,
-                                      name="UPDATED DEPUIS LE CODE")
-        z = await ScheduledEvent.fetch_users(bot=self.bot,
-                                             guild_id=877098506211442719,
-                                             guild_scheduled_event_id=r.id,
-                                             with_member=True)
-        u = await ScheduledEvent.delete(bot=self.bot,
-                                        guild_id=877098506211442719,
-                                        guild_scheduled_event_id=r.id)
-
-
-async def favorite_card(**t):
-    menu = t["menu"]
-    user_that_interact = t["user_that_interact"]
-    context = t["context"]
-    character_model = menu.retrieve_element(menu.page)
-    if type(character_model) is CharactersOwnership:
-        character_model = character_model.character_id
-    model, model_created = CharacterFavorites.get_or_create(character_id=character_model.id,
-                                                            discord_user_id=user_that_interact.id)
-    if not model_created:
-        model.delete_instance()
-    if model_created:
-        await context.send(f"You added to your favorites the card {character_model}.", hidden=True)
-    else:
-        await context.send(f"You removed from your favorites the card {character_model}.", hidden=True)
-
-
-async def lock_card(**t):
-    menu = t["menu"]
-    user_that_interact = t["user_that_interact"]
-    context = t["context"]
-    ownership_model = menu.retrieve_element(menu.page)
-    if user_that_interact.id == ownership_model.discord_user_id:
-        new_state = ownership_model.lock()
-        if new_state:
-            await context.send(f"You have locked the card {ownership_model}.", hidden=True)
+    @slash_command(description="Add a complete affiliation as favorite.",
+                   is_global=True)
+    async def favorite(self,
+                       interaction: InteractionContext,
+                       affiliation: str = ApplicationCommandField(description="Specify an affiliation's name value.",
+                                                                  required=True)):
+        await interaction.defer(ephemeral=True)
+        if affiliation is None or len(affiliation) <= 0:
+            await interaction.send(content="The 'affiliation' parameter cannot be empty.",
+                                   ephemeral=True)
+            return
+        affiliation_model = Affiliation.select(Affiliation.name == affiliation)
+        if len(affiliation_model) > 0:
+            query = (Character.select(Character.id, Character.name, Character.description, Character.image_link,
+                                      Character.rarity, CharacterFavorites.id)
+                     .join_from(Character, CharacterAffiliation)
+                     .join_from(CharacterAffiliation, Affiliation)
+                     .join_from(Character, CharacterFavorites, join_type=JOIN.LEFT_OUTER)
+                     .where((Affiliation.name == affiliation) &
+                            (CharacterFavorites.character_id == None)))
+            if len(query) > 0:
+                bulk_favorites = []
+                for character in query:
+                    bulk_favorites.append(CharacterFavorites(character_id=character.id,
+                                                             discord_user_id=interaction.author.id))
+                CharacterFavorites.bulk_create(bulk_favorites)
+                await interaction.send(content=f"Added {len(query)} new favorites for \"{affiliation}\".",
+                                       ephemeral=True)
+            else:
+                query = (CharacterFavorites.select(CharacterFavorites.id)
+                         .join_from(CharacterFavorites, Character, join_type=JOIN.LEFT_OUTER)
+                         .join_from(Character, CharacterAffiliation)
+                         .join_from(CharacterAffiliation, Affiliation)
+                         .where((Affiliation.name == affiliation) &
+                                (CharacterFavorites.character_id != None)))
+                number_of_deletion = len(query)
+                delete_query = CharacterFavorites.delete().where(CharacterFavorites.id.in_(query))
+                delete_query.execute()
+                await interaction.send(content=f"Removed {number_of_deletion} favorites for \"{affiliation}\".",
+                                       ephemeral=True)
         else:
-            await context.send(f"You have unlocked the card {ownership_model}.", hidden=True)
-    else:
-        await context.send("You are not the owner of the card, you cannot lock it.", hidden=True)
+            await interaction.send(content=f"No affiliations has been found for the query \"{affiliation}\".",
+                                   ephemeral=True)
 
-
-async def sell_card(**t):
-    menu = t["menu"]
-    user_that_interact = t["user_that_interact"]
-    context = t["context"]
-    ownership_model = menu.retrieve_element(menu.page)
-    if user_that_interact.id == ownership_model.discord_user_id:
-        price_sold = ownership_model.sell()
-        if price_sold > 0:
-            await user_that_interact.send(f"You have sold this card for {price_sold} {constants.COIN_NAME}.")
-            await context.defer(ignore=True)
+    @slash_command(description="Display all the characters that you want and don't own and who are owned by "
+                               "someone else.",
+                   is_global=True)
+    async def wishlist(self,
+                       interaction: InteractionContext):
+        query = (CharacterFavorites.select(CharacterFavorites.character_id,
+                                           Character.description, Character.image_link, Character.rarity,
+                                           Character.name, Character.url_link,
+                                           fn.GROUP_CONCAT(CharactersOwnership.discord_user_id.distinct()).alias("owners"),
+                                           fn.REPLACE(fn.GROUP_CONCAT(Affiliation.name.distinct()), ",", ", ").alias("aff"))
+                 .join_from(CharacterFavorites, Character)
+                 .join_from(Character, CharactersOwnership)
+                 .join_from(Character, CharacterAffiliation)
+                 .join_from(CharacterAffiliation, Affiliation)
+                 .where((CharacterFavorites.discord_user_id == interaction.author.id) &
+                 (CharactersOwnership.discord_user_id != interaction.author.id) &
+                 (CharactersOwnership.is_locked == False) &
+                 (CharactersOwnership.is_sold == False))
+                 .group_by(CharacterFavorites.id)
+                 .order_by(Character.rarity.desc(), Character.name, Affiliation.name))
+        if len(query) > 0:
+            wishlist_renderer = WishlistRender()
+            wishlist_view = PageView(puppet_bot=self.bot,
+                                     elements_to_display=query,
+                                     elements_per_page=1,
+                                     render=wishlist_renderer)
+            await wishlist_view.display_view(messageable=interaction)
         else:
-            await context.send(f"You have already sold this card and cannot sell it again. "
-                               f"If you think this is an error, please communicate to a moderator.", hidden=True)
-    else:
-        await context.send("You are not the owner of the card, you cannot sell it.", hidden=True)
+            await interaction.send(content="Impossible to find something that match your wishlist. Either no one own "
+                                           "an unlocked version of your favorites or you have no favorites")
 
-
-async def report_card(**t):
-    menu = t["menu"]
-    user_that_interact = t["user_that_interact"]
-    context = t["context"]
-    character_id = menu.retrieve_element(menu.page).character_id
-    character = Character.get_by_id(character_id)
-    embed = Embed()
-    embed.title = f"{constants.REPORT_EMOJI} Report a card"
-    embed.colour = 0xFF0000
-    embed.description = f"Hello, you are on your way to report the card **{character.name}**.\n\n"
-    embed.description += "Reporting a card means that the current card has something that you judge " \
-                         "incoherent, invalid or maybe because the card should not exist.\n\n **__Please " \
-                         "note that your report will be sent to a moderator that will review them in " \
-                         "order to judge if they are valid or not. Do not add any personal datas or " \
-                         "anything that could lead to a ban of the Puppet project.__**\n\n To be more " \
-                         "precise on the category of your report, you will find below a list of commands " \
-                         "that you can send to describe the type of report you want to do : "
-    embed.set_thumbnail(url=character.image_link)
-    embed.add_field(name="__Description incoherency__",
-                    value=f"/report description {character_id} **\"[YOUR COMMENT]\"**",
-                    inline=False)
-    embed.add_field(name="__Invalid image__",
-                    value=f"/report image {character_id} **\"[YOUR COMMENT]\"**",
-                    inline=False)
-    embed.add_field(name="__Invalid affiliation(s)__",
-                    value=f"/report affiliation {character_id} **\"[YOUR COMMENT]\"**",
-                    inline=False)
-    embed.add_field(name="__Invalid name__",
-                    value=f"/report name {character_id} **\"[YOUR COMMENT]\"**",
-                    inline=False)
-    embed.add_field(name="__Card incoherency__",
-                    value=f"/report card {character_id} **\"[YOUR COMMENT]\"**",
-                    inline=False)
-    embed.add_field(name="__Other report__",
-                    value=f"/report other {character_id} **\"[YOUR COMMENT]\"**",
-                    inline=False)
-    await user_that_interact.send(embed=embed)
-    await context.defer(ignore=True)
+    # @cog_ext.cog_slash(name="test",
+    #                    description="Test function for debug purpose")
+    # async def search(self, ctx: SlashContext):
+    #     starting_time = datetime.datetime.now()
+    #     ending_time = starting_time + datetime.timedelta(minutes=90)
+    #     r = await ScheduledEvent.create(bot=self.bot,
+    #                                     guild_id=877098506211442719,
+    #                                     name="code event",
+    #                                     privacy_level=ScheduledEventPrivacyLevel.GUILD_ONLY,
+    #                                     scheduled_start_time=starting_time,
+    #                                     scheduled_end_time=ending_time,
+    #                                     entity_type=ScheduledEventEntityType.EXTERNAL,
+    #                                     entity_metadata=ScheduledEventEntityMetadata(location="dtc"))
+    #     p = await ScheduledEvent.fetch_all(bot=self.bot,
+    #                                        guild_id=877098506211442719,
+    #                                        with_user_count=True)
+    #     s = await ScheduledEvent.fetch(bot=self.bot,
+    #                                    guild_id=877098506211442719,
+    #                                    guild_scheduled_event_id=r.id)
+    #     t = await ScheduledEvent.edit(bot=self.bot,
+    #                                   guild_id=877098506211442719,
+    #                                   guild_scheduled_event_id=r.id,
+    #                                   name="UPDATED DEPUIS LE CODE")
+    #     z = await ScheduledEvent.fetch_users(bot=self.bot,
+    #                                          guild_id=877098506211442719,
+    #                                          guild_scheduled_event_id=r.id,
+    #                                          with_member=True)
+    #     u = await ScheduledEvent.delete(bot=self.bot,
+    #                                     guild_id=877098506211442719,
+    #                                     guild_scheduled_event_id=r.id)
 
 
 def distribute_cards_to(receiver_id: int, booster_amount: int) -> \
@@ -316,12 +305,12 @@ def distribute_cards_to(receiver_id: int, booster_amount: int) -> \
 
     # Db retrieving
     ownerships_models_subquery = (CharactersOwnership.select()
-                                                     .order_by(CharactersOwnership.id.desc())
-                                                     .limit(5 * booster_amount))
+                                  .order_by(CharactersOwnership.id.desc())
+                                  .limit(5 * booster_amount))
     ownerships_models = (CharactersOwnership.select()
-                                            .join(ownerships_models_subquery,
-                                                  on=(CharactersOwnership.id == ownerships_models_subquery.c.id))
-                                            .order_by(CharactersOwnership.id.asc()))
+                         .join(ownerships_models_subquery,
+                               on=(CharactersOwnership.id == ownerships_models_subquery.c.id))
+                         .order_by(CharactersOwnership.id.asc()))
     return ownerships_models, characters_generated
 
 
@@ -335,3 +324,7 @@ def distribute_random_character(rarities):
             break
         rarity_index += 1
     return rarity_index
+
+
+def setup(bot):
+    bot.add_cog(CardCogs(bot))

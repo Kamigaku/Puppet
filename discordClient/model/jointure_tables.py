@@ -45,11 +45,6 @@ class CharactersOwnership(BaseModel):
         return f"{self.character_id}"
 
 
-class EventParticipants(BaseModel):
-    event_id = ForeignKeyField(Event, backref='participants')
-    discord_user_id = IntegerField()
-
-
 class EventRewards(BaseModel):
     event_id = ForeignKeyField(Event, backref='rewards')
     card_id = ForeignKeyField(Character, null=True)

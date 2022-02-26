@@ -1,12 +1,15 @@
-from discord import User, Message
+from typing import TYPE_CHECKING
 
 from discordClient.helper import Disposable
+
+if TYPE_CHECKING:
+    from discord import User, Message
 
 
 class ReactionListener:
 
-    def __init__(self, callback, message: Message, interaction_id: str,
-                 bound_to: User = None):
+    def __init__(self, callback, message: 'Message', interaction_id: str,
+                 bound_to: 'User' = None):
         self.callback = callback
         self.message = message
         if bound_to is not None:
@@ -18,7 +21,7 @@ class ReactionListener:
 
 class DeleteListener:
 
-    def __init__(self, message: Message, disposable_object: Disposable):
+    def __init__(self, message: 'Message', disposable_object: Disposable):
         self.message = message
         self.disposable_object = disposable_object
 

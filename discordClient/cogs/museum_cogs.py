@@ -1,28 +1,35 @@
-# import datapane as dp
-# import pandas as pd
 from typing import Any, List
 
-from discord import User
-from discord_slash import cog_ext, SlashContext, ComponentContext
-from discord_slash.model import SlashCommandOptionType
-from discord_slash.utils.manage_commands import create_option
-from discord_slash.utils.manage_components import create_select_option, create_select
-from peewee import fn
+from discord.ui import Button
 
+from discord import User, Interaction
+from peewee import fn, JOIN
+
+from discord.ext.commands import InteractionContext, ApplicationCommandField, slash_command
 from discordClient.cogs.abstract import AssignableCogs
-from discordClient.helper import constants
-from discordClient.model import Character, Affiliation, CharacterAffiliation, CharactersOwnership
-from discordClient.views import Reaction, PageView, MuseumCharacterListEmbedRender, \
-    ViewReactionsLine, ViewWithReactions, PageViewSelectElement, CharactersOwnershipEmbedRender
+from discordClient.model import Character, Affiliation, CharacterAffiliation, CharactersOwnership, CharacterFavorites
+from discordClient.views import MuseumCharacterListEmbedRender, CharactersOwnershipEmbedRender, SellButton, \
+    LockButton, ReportButton, FavoriteButton, LockFilterButton, UnlockFilterButton, FavoritedFilterButton, \
+    NonFavoritedFilterButton, RemoveFilterButton
+from discordClient.views.selects import RaritySelect, AffiliationSelect
+from discordClient.views.view import PageViewSelectElement, PageView
 
 
 class MuseumDataFilter:
 
-    def __init__(self, owner: User, category: Any = None, rarity: List = None, affiliation: Any = None):
+    def __init__(self,
+                 owner: User,
+                 category: str | None = None,
+                 rarity: List | None = None,
+                 affiliation: str | None = None,
+                 is_locked: bool | None = None,
+                 is_favorited: bool | None = None):
         self.owner = owner
         self.rarity = rarity
         self.affiliation = affiliation
         self.category = category
+        self.is_locked: bool | None = is_locked
+        self.is_favourited: bool | None = is_favorited
         self.affiliation_offset = 0
 
     def __str__(self):
@@ -50,14 +57,14 @@ class MuseumCogs(AssignableCogs):
     #       COMMAND COGS           #
     ################################
 
-    @cog_ext.cog_slash(name="museum",
-                       description="Display your complete collection",
-                       options=[
-                           create_option(name="user", description="The user to check",
-                                         option_type=SlashCommandOptionType.USER, required=False)
-                       ])
+    @slash_command(description="Display your collection or to the user specified",
+                   is_global=True,
+                   ephemeral=False)
     @AssignableCogs.restricted
-    async def museum(self, ctx: SlashContext, user: User = None):
+    async def museum(self,
+                     ctx: InteractionContext,
+                     user: User = ApplicationCommandField(description="The user you want to check",
+                                                          required=False)):
         character_categories = Character.select(Character.category).group_by(Character.category)
         categories = []
         for character_category in character_categories:
@@ -68,20 +75,9 @@ class MuseumCogs(AssignableCogs):
         else:
             museum_filter = MuseumDataFilter(user)
 
-        # Rarities selection
-        rarity_select_line = ViewReactionsLine()
-        rarity_select_line.add_reaction(Reaction(button=constants.RARITY_SELECT, callback=self.rarity_selected))
-
-        # Affiliation selection
-        affiliation_select = self.generate_affiliations_select(museum_filter)
-        affiliation_select_line = ViewReactionsLine()
-        affiliation_select_line.add_reaction(Reaction(button=affiliation_select, callback=self.affiliation_selected))
-
-        # Gui creation
+        # LIST OF OWNED CHARACTER (list of 10 elements displayed line by line)
         characters_renderer = MuseumCharacterListEmbedRender(msg_content=f"{museum_filter.owner.name}#"
                                                                          f"{museum_filter.owner.discriminator} museum")
-
-        # Query
         query = (Character.select(Character, fn.Count(Character.id).alias('count'), CharactersOwnership.discord_user_id)
                  .join_from(Character, CharactersOwnership,
                             on=(CharactersOwnership.character_id == Character.id))
@@ -90,67 +86,62 @@ class MuseumCogs(AssignableCogs):
                  .group_by(Character.id)
                  .order_by(Character.name))
 
-        category_menu = PageViewSelectElement(puppet_bot=self.bot,
-                                              elements_to_display=query,
-                                              render=characters_renderer,
-                                              lines=[rarity_select_line, affiliation_select_line],
-                                              callback_element_selection=self.display_character,
-                                              delete_after=600,
-                                              elements_per_page=10)
+        category_menu = PageView(puppet_bot=self.bot,
+                                 elements_to_display=query,
+                                 render=characters_renderer,
+                                 delete_after=600,
+                                 elements_per_page=10,
+                                 callback_next=self.refresh_recap,
+                                 callback_prev=self.refresh_recap,
+                                 callback_select=self.refresh_recap)
         category_menu.set_hidden_data(museum_filter)
-        await category_menu.display_menu(ctx)
+        category_menu.add_items([RaritySelect(row=2,
+                                              on_change=self.refresh_museum),  # TODO le select RARITY est mis à jour tout le temps et la selection disparait
+                                 AffiliationSelect(museum_filter=museum_filter,
+                                                   row=3,
+                                                   on_change=self.refresh_museum),
+                                 LockFilterButton(row=4,
+                                                  callback_method=self.display_locked_character),
+                                 UnlockFilterButton(row=4,
+                                                    callback_method=self.display_unlocked_character),
+                                 FavoritedFilterButton(row=4,
+                                                       callback_method=self.display_favorited_character),
+                                 NonFavoritedFilterButton(row=4,
+                                                          callback_method=self.display_non_favorited_character),
+                                 RemoveFilterButton(row=4,
+                                                    callback_method=self.remove_filters)])
+        await category_menu.display_view(messageable=ctx)
 
-    # @commands.command("report")
-    # async def report(self, ctx: Context):
-    #     query = (Character.select(Character.name, Character.description, Character.category, Character.rarity)
-    #                       .join(CharactersOwnership))
-    #     df = pd.DataFrame(list(query.dicts()))
-    #     r = dp.Report(
-    #         dp.Markdown('My simple report'),  # add description to the report
-    #         dp.DataTable(df),  # create a table
-    #     )
-    #
-    #     # Publish your report. Make sure to have visibility='PUBLIC' if you want to share your report
-    #     r.save(path='report.html')
+        # OWNERSHIP RECAP LIST - display each ownership one by one
+        ownership_query = (CharactersOwnership.select()
+                                              .join_from(CharactersOwnership, Character)
+                                              .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                                                     (CharactersOwnership.is_sold == False))
+                                              .order_by(Character.name))
+        sell_button: Button = SellButton(row=2)
+        favorite_button: Button = FavoriteButton(row=2)
+        lock_button: Button = LockButton(row=2)
+        report_button: Button = ReportButton(row=2)
 
-    ################################
-    #       CALLBACKS GUI          #
-    ################################
-
-    async def affiliation_selected(self, **t):
-        context = t["context"]
-        menu = t["menu"]
-        affiliation_selected = context.selected_options[0]
-        museum_filter = menu.get_hidden_data()
-        if affiliation_selected in ["previous_affiliation", "next_affiliation"]:
-            if affiliation_selected == "previous_affiliation":
-                museum_filter.affiliation_offset -= 1
-            elif affiliation_selected == "next_affiliation":
-                museum_filter.affiliation_offset += 1
-            menu.set_hidden_data(museum_filter)
-            reaction_affiliation = menu.retrieve_button("affiliation_select")
-            reaction_affiliation.button = self.generate_affiliations_select(museum_filter)
-            await menu.update_menu(context)
-        else:
-            if affiliation_selected == "all_affiliation":
-                museum_filter.set_affiliation(None)
-            else:
-                museum_filter.set_affiliation(affiliation_selected)
-            await self.refresh_museum(context, menu, museum_filter)
-
-    async def rarity_selected(self, **t):
-        context = t["context"]
-        menu = t["menu"]
-        museum_filter = menu.get_hidden_data()
-        museum_filter.set_rarity(context.selected_options)
-        await self.refresh_museum(context, menu, museum_filter)
+        common_users = self.bot.get_common_users(ctx.author)
+        character_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
+        self.ownerships_view = PageView(puppet_bot=self.bot,
+                                        elements_to_display=ownership_query,
+                                        elements_per_page=1,
+                                        render=character_renderer)
+        self.ownerships_view.add_items([sell_button, favorite_button, lock_button, report_button])
+        await self.ownerships_view.display_view(messageable=ctx,
+                                                send_has_reply=False)
 
     ################################
     #       GUI METHODS            #
     ################################
 
-    @staticmethod
-    async def refresh_museum(context, menu: ViewWithReactions, museum_filter: MuseumDataFilter):
+    async def refresh_museum(self,
+                             button: AffiliationSelect,
+                             interaction: Interaction):
+        await interaction.response.defer(ephemeral=True)
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
         query = Character.select(Character, fn.Count(Character.id).alias('count'), CharactersOwnership.discord_user_id)
         if museum_filter.category is not None:
             query = query.where(Character.category == museum_filter.category)
@@ -169,6 +160,16 @@ class MuseumCogs(AssignableCogs):
                  .group_by(Character.id)
                  .order_by(Character.name))
 
+        if museum_filter.is_locked is not None:
+            query = (query.where(CharactersOwnership.is_locked == museum_filter.is_locked))
+        if museum_filter.is_favourited is not None:
+            if museum_filter.is_favourited:
+                query = (query.join_from(Character, CharacterFavorites, join_type=JOIN.LEFT_OUTER)
+                              .where(CharacterFavorites.character_id != None))
+            else:
+                query = (query.join_from(Character, CharacterFavorites, join_type=JOIN.LEFT_OUTER)
+                              .where(CharacterFavorites.character_id == None))
+
         total_owned = query.count()
 
         characters_renderer = MuseumCharacterListEmbedRender(msg_content=f"{museum_filter.owner.name}#"
@@ -177,61 +178,108 @@ class MuseumCogs(AssignableCogs):
                                                                          f"{total_owned}/{total_characters} "
                                                                          f"characters.")
 
-        menu.update_datas(elements_to_display=query,
-                          render=characters_renderer)
-        await menu.update_menu(context)
+        button.view.update_datas(elements_to_display=query,
+                                 render=characters_renderer)
+        await button.view.update_view()
 
-    @staticmethod
-    def generate_affiliations_select(museum_filter: MuseumDataFilter):
-        # Affiliation selection
-        affiliations_options = []
-        query = Affiliation.select(Affiliation.name)
-        affiliations_options.append(create_select_option(f"All affiliations",
-                                                         value=f"all_affiliation",
-                                                         emoji=f"{constants.ASTERISK_EMOJI}"))
-        affiliations_options.append(create_select_option(f"Previous affiliations",
-                                                         value=f"previous_affiliation",
-                                                         emoji=f"{constants.LEFT_ARROW_EMOJI}"))
-        affiliations_options.append(create_select_option(f"Next affiliations",
-                                                         value=f"next_affiliation",
-                                                         emoji=f"{constants.RIGHT_ARROW_EMOJI}"))
-        if museum_filter.affiliation_offset < 0:
-            museum_filter.affiliation_offset = 0
-        elif museum_filter.affiliation_offset * 22 > len(query):
-            museum_filter.affiliation_offset -= 1
+        # Refresh the character ownership gui
+        ownership_query = (CharactersOwnership.select()
+                           .join_from(CharactersOwnership, Character)
+                           .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                                  (CharactersOwnership.is_sold == False))
+                           .order_by(Character.name))
+        if museum_filter.category is not None:
+            ownership_query = ownership_query.where(Character.category == museum_filter.category)
+        if museum_filter.rarity is not None:
+            ownership_query = ownership_query.where(Character.rarity << museum_filter.rarity)
+        if museum_filter.affiliation is not None:
+            ownership_query = (ownership_query.join_from(Character, CharacterAffiliation)
+                                              .join_from(CharacterAffiliation, Affiliation)
+                                              .where(Affiliation.name == museum_filter.affiliation))
+        if museum_filter.is_locked is not None:
+            ownership_query = (ownership_query.where(CharactersOwnership.is_locked == museum_filter.is_locked))
+        if museum_filter.is_favourited is not None:
+            if museum_filter.is_favourited:
+                ownership_query = (ownership_query.join_from(Character, CharacterFavorites, join_type=JOIN.LEFT_OUTER)
+                                                  .where(CharacterFavorites.character_id != None))
+            else:
+                ownership_query = (ownership_query.join_from(Character, CharacterFavorites, join_type=JOIN.LEFT_OUTER)
+                                                  .where(CharacterFavorites.character_id == None))
+        self.ownerships_view.update_datas(elements_to_display=ownership_query)
+        await self.ownerships_view.update_view()
 
-        for affiliation in query.paginate(museum_filter.affiliation_offset + 1, 22):
-            affiliations_options.append(create_select_option(f"{affiliation.name}",
-                                                             value=f"{affiliation.name}"))
-        affiliation_select = create_select(options=affiliations_options,
-                                           placeholder="Select the affiliation you want to display",
-                                           custom_id="affiliation_select")
-        return affiliation_select
+    async def refresh_recap(self, view: PageView, interaction: Interaction):
+        first_element_in_list = view.retrieve_element_by_offset()
+        starting_point = next(i for i, v in enumerate(self.ownerships_view.elements)
+                              if v.character_id.id == first_element_in_list.id)
+        await self.ownerships_view.go_to_page(starting_point)
 
-    async def display_character(self, context: ComponentContext,
-                                menu: PageViewSelectElement, selected_index: int, selected_element: Character):
-        await context.defer(ignore=True)
-        ownership_models = (CharactersOwnership.select()
-                            .where((CharactersOwnership.character_id == selected_element.id) &
-                                   (CharactersOwnership.discord_user_id ==
-                                    selected_element.charactersownership.discord_user_id) &
-                                   (CharactersOwnership.is_sold == False)))
+    async def display_locked_character(self,
+                                       button: LockFilterButton,
+                                       interaction: Interaction):
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
+        museum_filter.is_locked = True
+        await self.refresh_museum(button=button,
+                                  interaction=interaction)
 
-        common_users = self.bot.get_common_users(menu.get_hidden_data().owner)
-        characters_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
+    async def display_unlocked_character(self,
+                                         button: LockFilterButton,
+                                         interaction: Interaction):
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
+        museum_filter.is_locked = False
+        await self.refresh_museum(button=button,
+                                  interaction=interaction)
 
-        actions_line = ViewReactionsLine()
-        if menu.get_hidden_data().owner.id == context.author_id:
-            actions_line.add_reaction(Reaction(button=constants.SELL_BUTTON, callback=cardCogs.sell_card))
-        actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON, callback=cardCogs.favorite_card))
-        if menu.get_hidden_data().owner.id == context.author_id:
-            actions_line.add_reaction(Reaction(button=constants.LOCK_BUTTON, callback=cardCogs.lock_card))
-        actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON, callback=cardCogs.report_card))
+    async def display_favorited_character(self,
+                                       button: LockFilterButton,
+                                       interaction: Interaction):
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
+        museum_filter.is_favourited = True
+        await self.refresh_museum(button=button,
+                                  interaction=interaction)
 
-        characters_view = PageView(puppet_bot=self.bot,
-                                   elements_to_display=ownership_models,
-                                   render=characters_renderer,
-                                   bound_to=menu.bound_to,
-                                   lines=[actions_line],
-                                   delete_after=60)
-        await characters_view.display_menu(menu.menu_msg.channel)
+    async def display_non_favorited_character(self,
+                                         button: LockFilterButton,
+                                         interaction: Interaction):
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
+        museum_filter.is_favourited = False
+        await self.refresh_museum(button=button,
+                                  interaction=interaction)
+
+    async def remove_filters(self,
+                            button: LockFilterButton,
+                            interaction: Interaction):
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
+        museum_filter.is_favourited = None
+        museum_filter.is_locked = None
+        await self.refresh_museum(button=button,
+                                  interaction=interaction)
+
+    async def _locked_unlocked_character(self,
+                                         button,
+                                         lock_state: bool | None = None):
+        museum_filter: MuseumDataFilter = button.view.get_hidden_data()
+        query = (
+            Character.select(Character, fn.Count(Character.id).alias('count'), CharactersOwnership.discord_user_id)
+            .join_from(Character, CharactersOwnership,
+                       on=(CharactersOwnership.character_id == Character.id))
+            .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                   (CharactersOwnership.is_sold == False) &
+                   (CharactersOwnership.is_locked == lock_state))
+            .group_by(Character.id)
+            .order_by(Character.name))
+        button.view.update_datas(elements_to_display=query)
+        await button.view.update_view()
+
+        ownership_query = (CharactersOwnership.select()
+                           .join_from(CharactersOwnership, Character)
+                           .where((CharactersOwnership.discord_user_id == museum_filter.owner.id) &
+                                  (CharactersOwnership.is_sold == False) &
+                                  (CharactersOwnership.is_locked == lock_state))
+                           .order_by(Character.name))
+        self.ownerships_view.update_datas(elements_to_display=ownership_query)
+        await self.ownerships_view.update_view()
+
+
+def setup(bot):
+    bot.add_cog(MuseumCogs(bot))

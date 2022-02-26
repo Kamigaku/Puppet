@@ -1,9 +1,12 @@
-from discord import Embed
+from typing import TYPE_CHECKING
 from peewee import *
 
 from discordClient.helper import constants
 from discordClient.model import Character
 from discordClient.model.meta_model import BaseModel
+
+if TYPE_CHECKING:
+    from discord import Embed
 
 
 class Report(BaseModel):
@@ -14,7 +17,7 @@ class Report(BaseModel):
     has_been_treated = BooleanField(default=False)
     action_done = TextField(default="")
 
-    def generate_embed(self) -> Embed:
+    def generate_embed(self) -> 'Embed':
         character_embed = Character.get_by_id(self.card_id)
         report_embed = Embed()
         report_embed.set_author(name=f"{character_embed.name} - Category: {self.category}")

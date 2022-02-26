@@ -1,136 +1,170 @@
+import logging
 import typing
 from datetime import datetime, timedelta, timezone
 import random
+from urllib import request
+
+from discord.ui import Button
+
+from discord import GuildEvent, GuildEventStatus
 
 import discord
-from discord.ext import tasks
+from discord import utils
+from discord.ext import commands, tasks
+from discord.ext.commands import slash_command, InteractionContext, ApplicationCommandField
 from discord.ext.tasks import Loop
-from discord_slash import SlashCommandOptionType, SlashContext, cog_ext
-from discord_slash.utils.manage_commands import create_option, create_choice
 
-from discordClient.cogs import announcement_cogs, card_cogs
+from discordClient.cogs import card_cogs, announcement_cogs
 from discordClient.cogs.abstract import BaseCogs
 from discordClient.helper import constants
-from discordClient.model import EventParticipants, CharactersOwnership, Economy, Character
+from discordClient.model import Character, Economy, Settings
 from discordClient.model.event import Event
-from discordClient.model.jointure_tables import EventRewards
-from discordClient.views import ViewReactionsLine, GiveawayRender, ViewWithReactions, Reaction, EventResultRenderer, \
-    GiveawayResultRender, PageView, CharactersOwnershipEmbedRender, CharacterListEmbedRender
+from discordClient.model.jointure_tables import EventRewards, CharactersOwnership
+from discordClient.views import CharacterListEmbedRender, SellButton, FavoriteButton, LockButton, ReportButton, \
+    CharactersOwnershipEmbedRender
+from discordClient.views.view import PageView
+from discordClient.views.giveaway_renders import GiveawayResultRender, GiveawayRender
+from discordClient.views.view import ViewWithHiddenData
 
 
 class EventCogs(BaseCogs):
 
     def __init__(self, bot):
         super().__init__(bot, "event")
+        self.next_events: typing.Dict = {}
         self.event_loop.start()
-        self.active_event = None
-
-    # Decorators
-
-    def event(func):
-        async def wrapper(self, loop, event: Event, *args, **kwargs):
-            result = await func(self, event, *args, **kwargs)
-            if isinstance(loop, Loop):
-                await discord.utils.sleep_until(event.start_time.replace(tzinfo=timezone.utc) +
-                                                timedelta(minutes=event.duration))
-                await self.complete_event(event)
-            return result
-
-        return wrapper
 
     # Slash commands
 
-    @cog_ext.cog_slash(name="giveaway",
-                       description="Start a giveaway event",
-                       options=[
-                           create_option(
-                               name="duration",
-                               description="Specify the duration, in minutes, of the event",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=True
-                           ),
-                           create_option(
-                               name="card_id",
-                               description="Specify the card id that will be dropped",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=False
-                           ),
-                           create_option(
-                               name="booster_amount",
-                               description="Specify the amount of booster will be given",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=False
-                           ),
-                           create_option(
-                               name="money_amount",
-                               description="Specify the amount of money that will be given",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=False
-                           ),
-                           create_option(
-                               name="format",
-                               description="Specify the format of the giveaway",
-                               option_type=SlashCommandOptionType.STRING,
-                               choices=[create_choice(name="Random",
-                                                      value="0"),
-                                        create_choice(name="First",
-                                                      value="1")],
-                               required=False
-                           ),
-                           create_option(
-                               name="winner_number",
-                               description="Specify the amount of player that will win",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=False
-                           ),
-                           create_option(
-                               name="guild_restriction",
-                               description="Specify a guild id if you want to restrict the giveaway",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=False
-                           )
-                       ])
+    @slash_command(name="giveaway",
+                   description="Start a giveaway event",
+                   is_global=True)
     @BaseCogs.moderator_restricted
-    async def giveaway(self, ctx: SlashContext, duration: int, card_id: int = None, booster_amount: int = None,
-                       money_amount: int = None, format: str = "0", winner_number: int = 1,
-                       guild_restriction: int = -1):
+    async def giveaway(self, ctx: InteractionContext,
+                       duration: int = ApplicationCommandField(description="Specify the duration, in minutes, of the "
+                                                                           "event",
+                                                               required=True),
+                       card_id: int = ApplicationCommandField(description="Specify the card id that will be dropped"),
+                       booster_amount: int = ApplicationCommandField(description="Specify the amount of booster will "
+                                                                                 "be given"),
+                       money_amount: int = ApplicationCommandField(description="Specify the amount of money that "
+                                                                               "will be given"),
+                       format: str = ApplicationCommandField(description="Specify the format of the giveaway",
+                                                             default_value="0",
+                                                             values={"Random": "0",
+                                                                     "First": "1"}),
+                       winner_number: int = ApplicationCommandField(description="Specify the amount of player that "
+                                                                                "will win",
+                                                                    default_value=1)):
+        await ctx.defer(ephemeral=True)
         if winner_number < 1:
-            await ctx.send("You need at least 1 winner for the event.", hidden=True)
+            await ctx.send(content="You need at least 1 winner for the event.",
+                           ephemeral=True)
             return
         if duration < 0:
-            await ctx.send("The minutes you have entered is invalid. It should be a positive integer.", hidden=True)
+            await ctx.send(content="The minutes you have entered is invalid. It should be a positive integer.",
+                           ephemeral=True)
             return
-        event_model, reward_model = generate_event(duration=duration,
-                                                   start_time=datetime.utcnow(),
-                                                   card_id=card_id,
-                                                   booster_amount=booster_amount,
-                                                   money_amount=money_amount,
-                                                   format_event=format,
-                                                   winner_number=winner_number,
-                                                   guild_restriction=guild_restriction,
-                                                   started_by=ctx.author_id)
-        await ctx.send("The giveaway has been created.", hidden=True)
-        self.start_event(event_model)
+        end_time = datetime.utcnow() + timedelta(minutes=duration)
+        event_model, reward_model = generate_event_in_database(end_time=end_time,
+                                                               guild_id=ctx.guild.id,
+                                                               format_event=format,
+                                                               card_id=card_id,
+                                                               booster_amount=booster_amount,
+                                                               money_amount=money_amount,
+                                                               winner_number=winner_number)
+        await ctx.send(content="A giveaway event has been created.")
+        await self.start_event(context=ctx,
+                               event=event_model,
+                               event_reward=reward_model)
 
-    @cog_ext.cog_slash(name="event_cancel",
-                       description="Cancel an active event with or without a specific message",
-                       options=[
-                           create_option(
-                               name="event_id",
-                               description="Specify the event id that will be cancel",
-                               option_type=SlashCommandOptionType.INTEGER,
-                               required=True
-                           ),
-                           create_option(
-                               name="reason",
-                               description="Give a reason on why the event is cancelled",
-                               option_type=SlashCommandOptionType.STRING,
-                               required=False
-                           )
-                       ])
-    @BaseCogs.moderator_restricted
-    async def event_cancel(self, ctx: SlashContext, event_id: int, reason: str = None):
-        await ctx.send("This command is not yet implemented", hidden=True)
+    @commands.Cog.listener()
+    async def on_guild_scheduled_event_delete(self, data: GuildEvent):
+        model_event: Event = Event.get_or_none(Event.event_id == data.id)
+        if model_event is not None:
+            model_event.status = 4
+            model_event.save()
+
+    @commands.Cog.listener()
+    async def on_guild_scheduled_event_update(self, data: GuildEvent):
+        model_event: Event = Event.get_or_none(Event.event_id == data.id)
+        if model_event is not None:
+            model_event.status = data.status.value
+            model_event.save()
+            if data.status == GuildEventStatus.completed:
+                # distribute rewards
+                if model_event.type in [0]:  # giveaway types event
+                    # we need pick-up a winner
+                    participants: list = await data.get_all_users()
+                    participants_number: int = len(participants)
+                    number_of_winners: int = model_event.number_of_winner
+                    winners: list = []
+                    if participants_number < number_of_winners:
+                        number_of_winners = participants_number
+                    for _ in range(0, number_of_winners):
+                        index = random.randrange(0, len(participants))
+                        winners.append(participants[index])
+                        participants.pop(index)
+
+                    # We assign the gifties
+                    for reward in model_event.rewards:
+                        for winner in winners:
+                            if reward.card_id is not None:  # give card
+                                CharactersOwnership.create(discord_user_id=winner.id,
+                                                           character_id=reward.card_id)
+                                await winner.send(f"You have been given the character "
+                                                  f"{constants.RARITIES_EMOJI[reward.card_id.rarity]} "
+                                                  f"** [{constants.RARITIES_LABELS[reward.card_id.rarity]}] "
+                                                  f"{reward.card_id.name} ** because you won a giveaway.")
+                            if reward.money_amount is not None:  # we give money
+                                economy_model, model_created = Economy.get_or_create(discord_user_id=winner.id)
+                                economy_model.add_amount(reward.money_amount)
+                                await winner.send(f"You have been given {reward.money_amount} {constants.COIN_NAME} "
+                                                  f"because you won a giveaway.")
+                            if reward.booster_amount is not None:  # we give booster
+                                characters_owned_models, characters_models = card_cogs.distribute_cards_to(
+                                    receiver_id=winner.id,
+                                    booster_amount=reward.booster_amount)
+
+                                # Recap listing
+                                page_renderer = CharacterListEmbedRender(
+                                    msg_content=f"{winner.mention}, you have dropped "
+                                                f"{5 * reward.booster_amount} characters.",
+                                    menu_title="Summary of dropped characters",
+                                    owner=winner)
+                                page_view = PageView(puppet_bot=self.bot,
+                                                     elements_to_display=characters_models,
+                                                     elements_per_page=10,
+                                                     render=page_renderer)
+                                await page_view.display_view(messageable=winner)
+
+                                # First character displaying
+                                sell_button: Button = SellButton(row=2)
+                                favorite_button: Button = FavoriteButton(row=2)
+                                lock_button: Button = LockButton(row=2)
+                                report_button: Button = ReportButton(row=2)
+
+                                common_users = self.bot.get_common_users(winner)
+                                character_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
+                                characters_view = PageView(puppet_bot=self.bot,
+                                                           elements_to_display=characters_owned_models,
+                                                           elements_per_page=1,
+                                                           render=character_renderer)
+                                characters_view.add_items([sell_button, favorite_button, lock_button, report_button])
+                                await characters_view.display_view(messageable=winner.dm_channel,
+                                                                   send_has_reply=False)
+
+                    # We render the winners
+                    embed_renderer = GiveawayResultRender(msg_content="@here, a giveaway has ended!",
+                                                          winners=winners,
+                                                          participants_number=participants_number)
+                    winner_view: ViewWithHiddenData = ViewWithHiddenData(puppet_bot=self.bot,
+                                                                         elements_to_display=model_event,
+                                                                         render=embed_renderer)
+                    await announcement_cogs.announce_in_guild(bot=self.bot,
+                                                              cogs_name=self.cogs_name,
+                                                              view=winner_view,
+                                                              guild_id=data.guild_id)
 
     # Callbacks
 
@@ -141,198 +175,93 @@ class EventCogs(BaseCogs):
         that are due in less than 30 minutes.
         """
         await self.bot.wait_until_ready()
-        current_timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
-        delta_timestamp = current_timestamp + timedelta(minutes=15)
-        events_to_start = Event.select().where(Event.start_time > current_timestamp,
-                                               Event.start_time < delta_timestamp)
-        for event in events_to_start:
-            self.start_event(event)
+        for guild in self.bot.guilds:
+            # Aucun prochain event de planifier, on vient en planifier un
+            if guild.id not in self.next_events or self.next_events[guild.id] is None:
+                self.next_events[guild.id] = timedelta(minutes=min(840, max(int(random.gauss(480, 100)), 120)))
+                self.bot.logger.debug(f"A event is planned for {guild.id}. "
+                                      f"It will be run in {self.next_events[guild.id]}")
 
-        if self.active_event is None:
-            event_datetime = datetime.utcnow()
-            event_datetime = event_datetime + timedelta(minutes=min(840, max(int(random.gauss(480, 100)), 120)))
-            event_duration = min(10, max(int(random.gauss(30, 10)), 50))
-            event_model, reward_model = generate_event(duration=event_duration,
-                                                       start_time=event_datetime)
-            self.active_event = event_model
+            latest_event: Event | None = (Event.select()
+                                               .where(Event.status == 2 and Event.guild_id == guild.id)
+                                               .order_by(Event.event_id.desc())
+                                               .limit(1).get_or_none())
+            # On démarre le nouvel event
+            if latest_event is None or latest_event.end_time + self.next_events[guild.id] < datetime.utcnow():
+                self.bot.logger.debug(f"We are starting the event")
+                settings = Settings.get_or_none(Settings.cog == self.cogs_name and Settings.guild_id == guild.id)
+                if settings is not None:
+                    end_time: datetime = (datetime.utcnow() +
+                                          timedelta(minutes=min(10, max(int(random.gauss(30, 10)), 50))))
+                    event_model, reward_model = generate_event_in_database(end_time=end_time,
+                                                                           guild_id=guild.id)
+                    await self.start_event(context=guild.get_channel(settings.channel_id_restriction),
+                                           event=event_model,
+                                           event_reward=reward_model)
+                    self.next_events[guild.id] = None
 
-        # On annule aussi les concours non lancé du passé...
-        events_to_cancel = Event.select().where(Event.start_time < current_timestamp,
-                                                Event.status == 0)
-        for event in events_to_cancel:
-            event.status = 3
-            event.save()
+    @staticmethod
+    async def start_event(context: InteractionContext,
+                          event: Event,
+                          event_reward: EventRewards):
+        event_name: str = ""
+        event_banner: str | None = None
+        event_description: str = ""
+        event_location: str = f"{event.number_of_winner} "
+        event_location += "winner" if event.number_of_winner == 1 else "winners"
+        if event_reward.card_id is not None:  # card rewards
+            event_name = f"Card"
+            character: Character = Character.get(Character.id == event_reward.card_id)
+            event_banner = utils._bytes_to_base64_data(request.urlopen(character.image_link).read())
+            event_description = f"{constants.RARITIES_EMOJI[event_reward.card_id.rarity]} "
+            event_description += f"** [{constants.RARITIES_LABELS[event_reward.card_id.rarity]}] "
+            event_description += f"{event_reward.card_id.name} **\n"
+            event_description += ", ".join(
+                [affiliation.affiliation_id.name for affiliation in event_reward.card_id.affiliated_to])
+        elif event_reward.booster_amount is not None:  # booster rewards
+            event_name = "Booster"
+            event_description = f"{constants.PACKAGE_EMOJI} {event_reward.booster_amount} booster(s)"
+        elif event_reward.money_amount is not None:  # money rewards
+            event_name = "Money"
+            event_description = f"{constants.SELL_EMOJI} {event_reward.money_amount} {constants.COIN_NAME}"
 
-    @event
-    async def giveaway_event(self, event: Event):
-        # Les réactions
-        actions_line = ViewReactionsLine()
-        actions_line.add_reaction(Reaction(button=constants.PARTICIPATE_BUTTON, callback=self.participate_to))
-        # Le renderer
-        embed_renderer = GiveawayRender(msg_content="@here, a giveaway has started!")
+        if event.format == 0:  # raffle
+            event_name = f"{constants.GIFT_EMOJI} {event_name} raffle giveaway {constants.GIFT_EMOJI}"
+        elif event.format == 1:  # race
+            event_name = f"{constants.GIFT_EMOJI} {event_name} claim giveaway {constants.GIFT_EMOJI}"
+        elif event.format == 2:  # bid
+            event_name = f"{constants.GIFT_EMOJI} {event_name} bidding giveaway {constants.GIFT_EMOJI}"
 
-        # Le mix de tout
-        giveaway_view = ViewWithReactions(puppet_bot=self.bot,
-                                          elements_to_display=event,
-                                          render=embed_renderer,
-                                          lines=[actions_line])
-        if event.target == -1:  # global
-            await announcement_cogs.announce_everywhere(self.bot,
-                                                        self.cogs_name,
-                                                        giveaway_view)
-        else:  # guild focused
-            await announcement_cogs.announce_in_guild(self.bot,
-                                                      self.cogs_name,
-                                                      giveaway_view,
-                                                      event.target)
+        guild_event: GuildEvent = await context.guild.create_external_event(name=event_name,
+                                                                            scheduled_start_time=event.end_time,
+                                                                            scheduled_end_time=event.end_time +
+                                                                                               timedelta(seconds=1),
+                                                                            location=event_location,
+                                                                            description=event_description,
+                                                                            image=event_banner)
+        event_link: str = await guild_event.create_link()
 
-    def start_event(self, event: Event):
-        if event.status == 0 or event.status == 3:
-            event.status = 1
-            coroutine = None
-            if event.type == 0:  # giveaway
-                coroutine = self.giveaway_event
-            if not event.started_by:
-                self.active_event = event
-            loop_object = Loop(coro=coroutine,
-                               minutes=0,
-                               seconds=0,
-                               reconnect=True,
-                               hours=0,
-                               loop=None,
-                               count=1)
-            event.save()
-            loop_object.start(loop_object, event)
+        await context.send(content=f"@here A giveaway has started!\r\n{event_link}")
 
-    async def complete_event(self, event_completed: Event):
-        if event_completed.status == 1:
-            event_completed.status = 2
-            event_completed.save()
-        else:
-            return
-
-        embed_renderer = EventResultRenderer(msg_content="@here, an event has ended!")
-
-        if event_completed.type in [0]:  # giveaway types event
-            # we need pick-up a winner
-            participants = list(event_completed.participants)
-            participants_number = len(participants)
-            number_of_winner = 1
-            winners = []
-            if len(participants) < number_of_winner:
-                number_of_winner = len(participants)
-            for _ in range(0, number_of_winner):
-                index = random.randrange(0, len(participants))
-                winners.append(self.bot.get_user(participants[index].discord_user_id))
-                participants.pop(index)
-
-            # We assign the gifties
-            for reward in event_completed.rewards:
-                for winner in winners:
-                    if reward.card_id is not None:  # give card
-                        CharactersOwnership.create(discord_user_id=winner.id,
-                                                   character_id=reward.card_id)
-                        await winner.send(f"You have been given the character "
-                                          f"{constants.RARITIES_EMOJI[reward.card_id.rarity]} "
-                                          f"** [{constants.RARITIES_LABELS[reward.card_id.rarity]}] "
-                                          f"{reward.card_id.name} ** because you won a giveaway.")
-                    if reward.money_amount is not None:  # we give money
-                        economy_model, model_created = Economy.get_or_create(discord_user_id=winner.id)
-                        economy_model.add_amount(reward.money_amount)
-                        await winner.send(f"You have been given {reward.money_amount} {constants.COIN_NAME} because "
-                                          f"you won a giveaway.")
-                    if reward.booster_amount is not None:  # we give booster
-                        characters_owned_models, characters_models = card_cogs.distribute_cards_to(
-                            receiver_id=winner.id,
-                            booster_amount=reward.booster_amount)
-                        # Toute la section en dessous doit être déplacer dans card_cogs...
-                        # Recap listing
-                        page_renderer = CharacterListEmbedRender(msg_content=f"{winner.mention}, you have dropped "
-                                                                             f"{5 * reward.booster_amount} characters.",
-                                                                 menu_title="Summary of dropped characters")
-                        page_view = PageView(puppet_bot=self.bot,
-                                             elements_to_display=characters_models,
-                                             elements_per_page=10,
-                                             render=page_renderer)
-                        await page_view.display_menu(winner)
-
-                        # First character displaying
-                        actions_line = ViewReactionsLine()
-                        actions_line.add_reaction(Reaction(button=constants.SELL_BUTTON,
-                                                           callback=card_cogs.sell_card))
-                        actions_line.add_reaction(Reaction(button=constants.FAVORITE_BUTTON,
-                                                           callback=card_cogs.favorite_card))
-                        actions_line.add_reaction(Reaction(button=constants.LOCK_BUTTON,
-                                                           callback=card_cogs.lock_card))
-                        actions_line.add_reaction(Reaction(button=constants.REPORT_BUTTON,
-                                                           callback=card_cogs.report_card))
-
-                        common_users = self.bot.get_common_users(winner)
-                        character_renderer = CharactersOwnershipEmbedRender(common_users=common_users)
-                        characters_view = PageView(puppet_bot=self.bot,
-                                                   elements_to_display=characters_owned_models,
-                                                   lines=[actions_line],
-                                                   elements_per_page=1,
-                                                   render=character_renderer)
-                        await characters_view.display_menu(winner.dm_channel)
-
-            # We render the winners
-            embed_renderer = GiveawayResultRender(msg_content="@here, a giveaway has ended!",
-                                                  winners=winners,
-                                                  participants_number=participants_number)
-
-        # On mix tout
-        giveaway_view = ViewWithReactions(puppet_bot=self.bot,
-                                          render=embed_renderer,
-                                          elements_to_display=event_completed)
-
-        if event_completed.target == -1:  # global
-            await announcement_cogs.announce_everywhere(self.bot,
-                                                        self.cogs_name,
-                                                        giveaway_view)
-        else:  # guild focused
-            await announcement_cogs.announce_in_guild(self.bot,
-                                                      self.cogs_name,
-                                                      giveaway_view,
-                                                      event_completed.target)
-        # On supprime au passage tous les participants, car plus besoin
-        EventParticipants.delete().where(EventParticipants.event_id == event_completed.id)
-
-        if not event_completed.started_by:
-            self.active_event = None
-
-    async def participate_to(self, **t):
-        menu = t["menu"]
-        user_that_interact = t["user_that_interact"]
-        context = t["context"]
-        event = menu.elements  # Retrieve the event
-
-        if event.status == 1:
-            model_created, was_created = EventParticipants.get_or_create(event_id=event.id,
-                                                                         discord_user_id=user_that_interact.id)
-            if was_created:
-                await context.send("You have been registered as a participant for this event!", hidden=True)
-            else:
-                await context.send("You are already registered in this event.", hidden=True)
-            if event.format == 1:
-                await self.complete_event(event)
-        else:
-            await context.send("The event is already over or it was cancelled.", hidden=True)
+        event.event_id = guild_event.id
+        event.save()
 
 
-def generate_event(duration: int, start_time: datetime, card_id: int = None, booster_amount: int = None,
-                   money_amount: int = None, format_event: str = "0", winner_number: int = 1,
-                   guild_restriction: int = -1, started_by: int = None) -> typing.Tuple[Event, EventRewards]:
+def generate_event_in_database(end_time: datetime,
+                               guild_id: int,
+                               card_id: int = None,
+                               booster_amount: int = None,
+                               money_amount: int = None,
+                               format_event: str = "0",
+                               winner_number: int = 1) -> typing.Tuple[Event, EventRewards]:
     if winner_number < 1:
-        return None, None
-    if duration < 0:
         return None, None
     if card_id is None and booster_amount is None and money_amount is None:
         action = random.randrange(0, 3)
-        if action == 1:  # card giveaway
+        if action == 0:  # card giveaway
             all_characters = Character.select()
             card_id = all_characters[random.randrange(0, len(all_characters))].id
-        elif action == 2:  # money giveaway
+        elif action == 1:  # money giveaway
             money_amount = int(random.gauss(60, 10))
             money_amount = min(120, max(money_amount, 20))
         else:  # booster giveaway
@@ -340,16 +269,19 @@ def generate_event(duration: int, start_time: datetime, card_id: int = None, boo
             booster_amount = min(6, max(booster_amount, 1))
 
     # Event creation
-    event_model = Event.create(type=0,
-                               target=guild_restriction,
-                               duration=duration,
-                               start_time=start_time,
+    event_model = Event.create(guild_id=guild_id,
+                               type=0,
+                               end_time=end_time,
                                format=int(format_event),
-                               status=0,
-                               started_by=started_by)
+                               number_of_winner=winner_number,
+                               status=0)
     # Reward creation
     reward_model = EventRewards.create(event_id=event_model.id,
                                        card_id=card_id,
                                        booster_amount=booster_amount,
                                        money_amount=money_amount)
     return event_model, reward_model
+
+
+def setup(bot):
+    bot.add_cog(EventCogs(bot))

@@ -1,10 +1,8 @@
 import unicodedata
 
-from discord import Colour
-from discord_slash import ButtonStyle
-from discord_slash.utils.manage_components import create_button, create_select_option, create_select
-
 COIN_NAME = "biteCoin"
+
+COGS_PATH = "cogs"
 
 LETTER_EMOJIS = [
     unicodedata.lookup(f'REGIONAL INDICATOR SYMBOL LETTER {chr(letter)}')
@@ -38,10 +36,12 @@ HEART_EMOJI = "\U00002764"
 BELL_EMOJI = "\U0001F514"
 GIFT_EMOJI = "\U0001F381"
 PACKAGE_EMOJI = "\U0001F4E6"
+UNLOCK_EMOJI = "\U0001F513"
+BROKEN_HEART_EMOJI = "\U0001F494"
 
 RARITIES_LABELS = ["E", "D", "C", "B", "A", "S", "SS"]
-RARITIES_COLORS = [Colour(0x9B9B9B), Colour(0xFFFFFF), Colour(0x69e15e), Colour(0x4ccfff), Colour(0xf0b71c),
-                   Colour(0xf08033), Colour(0x8f39ce)]
+RARITIES_COLORS = [0x9B9B9B, 0xFFFFFF, 0x69e15e, 0x4ccfff, 0xf0b71c,
+                   0xf08033, 0x8f39ce]
 RARITIES_HEXA = ["9B9B9B", "FFFFFF", "69e15e", "4ccfff", "f0b71c", "f08033", "8f39ce"]
 RARITIES_URL = "https://www.colorhexa.com/{}.png"
 
@@ -65,22 +65,22 @@ REACTION_ADD = "REACTION_ADD"
 REACTION_REMOVE = "REACTION_REMOVE"
 
 # BUTTONS
-SELL_BUTTON = create_button(style=ButtonStyle.green, label="Sell", custom_id="sell_card", emoji=SELL_EMOJI)
-REPORT_BUTTON = create_button(style=ButtonStyle.red, label="Report", custom_id="report_card", emoji=REPORT_EMOJI)
-LOCK_BUTTON = create_button(style=ButtonStyle.blue, label="Lock", custom_id="lock_card", emoji=LOCK_EMOJI)
-FAVORITE_BUTTON = create_button(style=ButtonStyle.blue, label="Favorite", custom_id="favorite_card", emoji=HEART_EMOJI)
-VALIDATE_BUTTON = create_button(style=ButtonStyle.green, label="Validate", custom_id="validate", emoji=CHECK_EMOJI)
-CANCEL_BUTTON = create_button(style=ButtonStyle.red, label="Cancel", custom_id="cancel", emoji=RED_CROSS_EMOJI)
-CHANGE_OWNER_BUTTON = create_button(style=ButtonStyle.blue, label="Change owner", custom_id="change_owner",
-                                    emoji=ROTATE_EMOJI)
-PARTICIPATE_BUTTON = create_button(style=ButtonStyle.green, label="Participate", custom_id="participate",
-                                   emoji=CHECK_EMOJI)
+#SELL_BUTTON = Button(style=ButtonStyle.green, label="Sell", custom_id="sell_card", emoji=SELL_EMOJI)
+#REPORT_BUTTON = Button(style=ButtonStyle.red, label="Report", custom_id="report_card", emoji=REPORT_EMOJI)
+#LOCK_BUTTON = Button(style=ButtonStyle.blurple, label="Lock", custom_id="lock_card", emoji=LOCK_EMOJI)
+#FAVORITE_BUTTON = Button(style=ButtonStyle.blurple, label="Favorite", custom_id="favorite_card", emoji=HEART_EMOJI)
+#VALIDATE_BUTTON = Button(style=ButtonStyle.green, label="Validate", custom_id="validate", emoji=CHECK_EMOJI)
+#CANCEL_BUTTON = Button(style=ButtonStyle.red, label="Cancel", custom_id="cancel", emoji=RED_CROSS_EMOJI)
+# CHANGE_OWNER_BUTTON = Button(style=ButtonStyle.blurple, label="Change owner", custom_id="change_owner",
+#                              emoji=ROTATE_EMOJI)
+# PARTICIPATE_BUTTON = Button(style=ButtonStyle.green, label="Participate", custom_id="participate",
+#                             emoji=CHECK_EMOJI)
 
 # SELECTS
-RARITY_SELECT = create_select(options=[create_select_option(f"{RARITIES_LABELS[index]}",
-                                                            value=f"{index}",
-                                                            emoji=f"{RARITIES_EMOJI[index]}")
-                                       for index in range(1, 7)],
-                              placeholder="Select the rarity you want to apply",
-                              custom_id="rarity_select",
-                              max_values=6)
+# RARITY_SELECT = Select(options=[SelectOption(label=f"{RARITIES_LABELS[index]}",
+#                                              value=f"{index}",
+#                                              emoji=f"{RARITIES_EMOJI[index]}")
+#                                 for index in range(1, 7)],
+#                        placeholder="Select the rarity you want to apply",
+#                        custom_id="rarity_select",
+#                        max_values=6)

@@ -2,7 +2,7 @@ import abc
 from typing import Any, List
 
 import discord.abc
-from discord import Embed, User
+from discord import Embed, User, Colour
 
 from discordClient.helper import constants
 
@@ -24,6 +24,10 @@ class Render(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def generate_render(self, **t):
+        pass
+
+    @abc.abstractmethod
+    def generate_content(self) -> str:
         pass
 
 
@@ -101,7 +105,7 @@ class CharacterEmbedRender(EmbedRender):
         if len(data.description) > 255:
             character_description = data.description[:255] + "..."
 
-        embed = Embed(colour=constants.RARITIES_COLORS[data.rarity],
+        embed = Embed(colour=Colour(constants.RARITIES_COLORS[data.rarity]),
                       description=character_description)
 
         # Thumbnail
@@ -136,11 +140,15 @@ class CharacterEmbedRender(EmbedRender):
                             field_owners_value[owner_id] = {}
                             field_owners_value[owner_id]["name"] = f"{common_user.name}#{common_user.discriminator}"
                             field_owners_value[owner_id]["occurrence"] = 0
+                            field_owners_value[owner_id]["lock_occurrence"] = 0
                         field_owners_value[owner_id]["occurrence"] += 1
+                        if owner.is_locked:
+                            field_owners_value[owner_id]["lock_occurrence"] += 1
             if len(field_owners_value) > 0:
                 embed.add_field(name=field_owners_name,
                                 value="\n".join([
-                                    f"{field_owners_value[f]['name']} (**x{field_owners_value[f]['occurrence']}**)"
+                                    f"**x{field_owners_value[f]['occurrence']}** {field_owners_value[f]['name']} "
+                                    f"({constants.LOCK_EMOJI}**x{field_owners_value[f]['lock_occurrence']}**)"
                                     for f in field_owners_value]),
                                 inline=True)
 
@@ -184,6 +192,17 @@ class CharacterOwnershipEmbedRender(CharacterEmbedRender):
         embed = super().generate_render(**t)
         embed.set_footer(text=f"{embed.footer.text} | Ownership_id: {character_ownership.id}",
                          icon_url=embed.footer.icon_url)
+        # Author
+        author_name = character_ownership.character_id.name
+        if character_ownership.is_locked:
+            author_name += f" {constants.LOCK_EMOJI}"
+        if character_ownership.is_sold:
+            author_name += f" | {constants.SELL_EMOJI} SOLD {constants.SELL_EMOJI}" # TODO: plutot que de faire ça, il faudrait cacher les icones de vente et lock
+
+        embed.set_author(name=author_name,
+                         icon_url=embed.author.icon_url,
+                         url=embed.author.url)
+
         return embed
 
 
@@ -209,6 +228,7 @@ class MuseumCharacterListEmbedRender(CharacterListEmbedRender):
     def generate_render(self, **t) -> Embed:
         # Retrieve variables
         data = t["data"]
+        starting_index = t["starting_index"]
 
         embed = super().generate_render(**t)
 
@@ -220,7 +240,7 @@ class MuseumCharacterListEmbedRender(CharacterListEmbedRender):
         description = ""
         iteration = 1
         for character in data:
-            description += f"`{iteration}`. {constants.RARITIES_EMOJI[character.rarity]} " \
+            description += f"`{starting_index + iteration}`. {constants.RARITIES_EMOJI[character.rarity]} " \
                            f"** [{constants.RARITIES_LABELS[character.rarity]}] {character.name} **"
             if character.count > 1:
                 description += f" (x{character.count})"
@@ -241,18 +261,22 @@ class MuseumCharacterListEmbedRender(CharacterListEmbedRender):
 
 class TradeRecapEmbedRender(EmbedRender):
 
-    def __init__(self, applicant: User, recipient: User, menu_title: str = "Trade recap", msg_content: str = ""):
+    def __init__(self,
+                 applicant: discord.User | discord.Member,
+                 recipient: discord.User | discord.Member,
+                 menu_title: str = "Trade recap",
+                 msg_content: str = ""):
         super().__init__(msg_content=msg_content)
-        self.applicant = applicant
-        self.recipient = recipient
-        self.menu_title = menu_title
+        self.applicant: discord.User | discord.Member = applicant
+        self.recipient: discord.User | discord.Member = recipient
+        self.menu_title: str = menu_title
 
     def generate_render(self, data: List[Fields] = None) -> Embed:
         embed = Embed()
 
         embed.set_author(name=f"{self.applicant.name}#{self.applicant.discriminator}",
-                         icon_url=self.applicant.avatar_url)
-        embed.set_thumbnail(url=self.recipient.avatar_url)
+                         icon_url=self.applicant.display_avatar.url)
+        embed.set_thumbnail(url=self.recipient.display_avatar.url)
         embed.title = self.menu_title
         embed.description = f"This section list the cards that will be traded between {self.applicant.mention} and " \
                             f"{self.recipient.mention}."
@@ -299,8 +323,11 @@ class TradeCharactersListEmbedRender(EmbedRender):
         embed.description = description
         embed.set_footer(text=f"Page {page + 1}")
         embed.set_author(name=f"{self.current_owner.name}#{self.current_owner.discriminator}",
-                         icon_url=self.current_owner.avatar_url)
+                         icon_url=self.current_owner.display_avatar.url)
         return embed
+
+    def change_owner(self, new_owner: User):
+        self.current_owner = new_owner
 
 
 #################################
@@ -321,4 +348,3 @@ class AnnouncementEmbedRender(EmbedRender):
         embed.set_thumbnail(url=self.image_url)
         embed.description = f"{self.content}"
         return embed
-
