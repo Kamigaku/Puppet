@@ -4,7 +4,6 @@ import typing
 from pathlib import Path
 
 import discord
-#from discord import Intents, User, RawMessageDeleteEvent
 from discord.ext.commands import Bot
 import discordClient.helper.constants
 from discordClient.helper.listener import ReactionListener, DeleteListener
