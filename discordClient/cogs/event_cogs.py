@@ -189,7 +189,9 @@ class EventCogs(BaseCogs):
             # On démarre le nouvel event
             if latest_event is None or latest_event.end_time + self.next_events[guild.id] < datetime.utcnow():
                 self.bot.logger.debug(f"We are starting the event")
-                settings = Settings.get_or_none(Settings.cog == self.cogs_name and Settings.guild_id == guild.id)
+                settings = (Settings.select()
+                                    .where(Settings.cog == self.cogs_name and Settings.guild_id == guild.id)
+                                    .get_or_none())
                 if settings is not None:
                     end_time: datetime = (datetime.utcnow() +
                                           timedelta(minutes=min(10, max(int(random.gauss(30, 10)), 50))))
